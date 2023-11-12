@@ -1,0 +1,56 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Counter = void 0;
+class Counter {
+    bornAt;
+    value = 0;
+    increment = 1;
+    decrement = 1;
+    constructor() {
+        this.bornAt = Date.now();
+    }
+    /**
+     * The current value of the counter.
+     */
+    get count() {
+        return this.value;
+    }
+    /**
+     * Increments the counter by the specified amount.
+     */
+    inc(n) {
+        this.value += n ?? this.increment;
+    }
+    /**
+     * Decrements the counter by the specified amount.
+     */
+    dec(n) {
+        this.value -= n ?? this.decrement;
+    }
+    /**
+     * Sets the counter to the specified value.
+     */
+    set(n) {
+        this.value = n ?? this.value;
+    }
+    /**
+     * Resets the counter to 0.
+     */
+    reset() {
+        this.value = 0;
+    }
+    /**
+     * The age of the counter (in milliseconds).
+     */
+    get age() {
+        return Date.now() - this.bornAt;
+    }
+    /**
+     * Returns the average of the counter (per minute).
+     */
+    get perMinute() {
+        return (this.value / this.age * 1000 * 60);
+    }
+}
+exports.Counter = Counter;
+//# sourceMappingURL=Counter.js.map

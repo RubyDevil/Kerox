@@ -1,0 +1,15 @@
+{
+   "include": [
+      "**/*.ts"
+   ],
+   "compilerOptions": {
+      "sourceMap": true,
+      "resolveJsonModule": true,
+      "target": "esnext",
+      "module": "commonjs",
+      "esModuleInterop": true,
+      "forceConsistentCasingInFileNames": true,
+      "strict": true,
+      "skipLibCheck": true
+   }
+}
