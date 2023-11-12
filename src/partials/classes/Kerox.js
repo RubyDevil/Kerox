@@ -1,10 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Kerox = void 0;
 const child_process_1 = require("child_process");
 const Utils_1 = require("../utils/Utils");
 const Counter_1 = require("./Counter");
 require("overpaint.js");
+const path_1 = __importDefault(require("path"));
 class Kerox {
     static header = (0, Utils_1.getStatic)('header.txt')._RebeccaPurple;
     logs = [];
@@ -74,7 +78,7 @@ class Kerox {
     // ========== Stressers =============================================================================
     spawnStressers(amount) {
         for (let i = 0; i < amount; i++) {
-            const stresser = (0, child_process_1.fork)('src/partials/exec/spawn.js');
+            const stresser = (0, child_process_1.fork)(path_1.default.join(__dirname, 'partials/exec/Spawn.js'));
             this.stressers.set(stresser.pid, stresser);
             stresser.on('message', (message) => {
                 if (typeof message !== 'object')
