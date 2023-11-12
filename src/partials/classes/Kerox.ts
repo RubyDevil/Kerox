@@ -90,7 +90,7 @@ export class Kerox {
 
    private spawnStressers(amount: number) {
       for (let i = 0; i < amount; i++) {
-         const stresser = fork(path.join(__dirname, 'partials/exec/Spawn.js'));
+         const stresser = fork(path.join(__dirname, '..', 'exec', 'Spawn.js'));
          this.stressers.set(stresser.pid!, stresser);
 
          stresser.on('message', (message: any) => {

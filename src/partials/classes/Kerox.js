@@ -78,7 +78,7 @@ class Kerox {
     // ========== Stressers =============================================================================
     spawnStressers(amount) {
         for (let i = 0; i < amount; i++) {
-            const stresser = (0, child_process_1.fork)(path_1.default.join(__dirname, 'partials/exec/Spawn.js'));
+            const stresser = (0, child_process_1.fork)(path_1.default.join(__dirname, '..', 'exec', 'Spawn.js'));
             this.stressers.set(stresser.pid, stresser);
             stresser.on('message', (message) => {
                 if (typeof message !== 'object')
