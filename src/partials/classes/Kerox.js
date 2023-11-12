@@ -37,9 +37,9 @@ class Kerox {
         // add static logs
         // this.logs.push(`   Target: ${this.options.target}`._PurpleAmethyst);
         // spawn stressers
-        this.spawnStressers(8);
+        this.spawnStressers(1);
         // start rendering terminal
-        this.renderTerminal(10);
+        this.renderTerminal(2);
     }
     // ========== Stats ================================================================================
     updateStats() {
@@ -93,6 +93,9 @@ class Kerox {
                         // console.log(message.data);
                         break;
                 }
+            });
+            stresser.on('error', (err) => {
+                console.error(`Error: ${err.message}`);
             });
             stresser.send({
                 type: 'spawn',
