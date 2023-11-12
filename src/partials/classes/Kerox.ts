@@ -5,6 +5,7 @@ import { Counter } from "./Counter";
 import { Stats } from "../types/Stats";
 
 import 'overpaint.js';
+import path from "path";
 
 export class Kerox {
 
@@ -89,7 +90,7 @@ export class Kerox {
 
    private spawnStressers(amount: number) {
       for (let i = 0; i < amount; i++) {
-         const stresser = fork('src/partials/exec/spawn.js');
+         const stresser = fork(path.join(__dirname, 'partials/exec/Spawn.js'));
          this.stressers.set(stresser.pid!, stresser);
 
          stresser.on('message', (message: any) => {
