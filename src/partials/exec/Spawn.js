@@ -1,20 +1,30 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Stresser_1 = require("../classes/Stresser");
-process.on('message', (message) => {
+const PacketType_1 = require("../enums/PacketType");
+const Packet_1 = require("../types/Packet");
+const Log_1 = require("../types/Log");
+const LogType_1 = require("../enums/LogType");
+let stresser;
+process.on('message', async (packet) => {
     if (!process.send)
         return;
-    if (typeof message !== 'object')
-        return;
-    switch (message.type) {
-        case 'spawn': {
-            // create stresser
-            new Stresser_1.Stresser(message.options);
-            // send spawned message
-            process.send({
-                type: 'spawned',
-                pid: process.pid
-            });
+    switch (packet.type) {
+        case PacketType_1.PacketType.Init: {
+            stresser = new Stresser_1.Stresser(packet.data);
+            process.send?.((0, Packet_1.Packet)(PacketType_1.PacketType.Spawned, undefined));
+            break;
+        }
+        case PacketType_1.PacketType.ValidateProxies: {
+            process.send?.((0, Packet_1.Packet)(PacketType_1.PacketType.Log, (0, Log_1.Log)(LogType_1.LogType.Info, `Validating proxies...`._dim)));
+            await stresser.validateProxies(packet.data?.proxies, packet.data?.timeout);
+            process.send((0, Packet_1.Packet)(PacketType_1.PacketType.Done, undefined));
+            break;
+        }
+        case PacketType_1.PacketType.Stress: {
+            if (!packet.data)
+                throw new Error('Duration cannot be null.');
+            stresser.stress(packet.data);
             break;
         }
     }

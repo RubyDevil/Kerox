@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toHumanTime = exports.addStatic = exports.setStatic = exports.getStatic = void 0;
+exports.toHumanTime = exports.joinProxies = exports.parseProxies = exports.addStatic = exports.setStatic = exports.getStatic = void 0;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 function getStatic(fileName) {
@@ -38,6 +38,16 @@ function addStatic(fileName, content) {
     return fs.appendFileSync(path.join(__dirname, '..', '..', 'static', fileName), content, 'utf8');
 }
 exports.addStatic = addStatic;
+function parseProxies(proxies) {
+    return proxies
+        .map(proxy => proxy.split(':'))
+        .filter(proxy => proxy.length >= 2);
+}
+exports.parseProxies = parseProxies;
+function joinProxies(proxies) {
+    return proxies.map(proxy => proxy.join(':'));
+}
+exports.joinProxies = joinProxies;
 /**
  * Converts a duration from milliseconds to a human-readable format.
  * @param ms - The duration in milliseconds.
