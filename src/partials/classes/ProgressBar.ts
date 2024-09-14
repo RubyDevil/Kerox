@@ -1,5 +1,3 @@
-import { toHumanTime } from "../utils/Utils";
-
 export class ProgressBar {
 
    private static readonly icons = {

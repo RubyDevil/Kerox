@@ -1,12 +1,11 @@
 import { URL } from 'url';
 import http from 'http';
-import https from 'https';
 
 import 'overpaint.js';
 import axios, { AxiosRequestConfig, AxiosRequestHeaders } from 'axios';
 import { faker } from '@faker-js/faker';
 
-import { setStatic, toHumanTime } from '../utils/Utils';
+import { setStatic } from '../utils/Utils';
 import { PacketType } from '../enums/PacketType';
 import { StresserOptions } from '../types/Options';
 import { KProxy } from '../types/Proxy';

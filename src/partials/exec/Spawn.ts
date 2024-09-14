@@ -1,8 +1,6 @@
 import { Stresser } from "../classes/Stresser";
 import { PacketType } from "../enums/PacketType";
 import { KPacket, Packet } from "../types/Packet";
-import { KProxy } from "../types/Proxy";
-import { StresserOptions } from "../types/Options";
 import { Log } from "../types/Log";
 import { LogType } from "../enums/LogType";
 

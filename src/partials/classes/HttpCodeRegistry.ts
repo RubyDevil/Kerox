@@ -1,5 +1,3 @@
-import { HttpCode } from "../types/HttpCode";
-
 export class HttpCodeRegistry {
 
    public registry: { [code: number]: number } = {};

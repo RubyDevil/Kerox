@@ -2,7 +2,7 @@ import { PacketType } from "../enums/PacketType";
 import { KLog } from "./Log";
 import { Stats } from "../classes/Stats";
 import { KProxy } from "./Proxy";
-import { KeroxOptions, StresserOptions } from "./Options";
+import { StresserOptions } from "./Options";
 import { DDoSDuration } from "./DDoS";
 
 type BasePacket<T extends PacketType, D> = {

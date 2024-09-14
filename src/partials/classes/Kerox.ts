@@ -1,11 +1,10 @@
 import { ChildProcess, fork } from "child_process";
 import path from "path";
 import * as http from 'http';
-import * as https from 'https';
 
 import 'overpaint.js';
 
-import { getStatic, parseProxies, toHumanTime } from "../utils/Utils";
+import { getStatic, parseProxies } from "../utils/Utils";
 import { PacketType } from "../enums/PacketType";
 import { Status } from "../enums/Status";
 import { Info } from "../enums/Status";
@@ -13,9 +12,9 @@ import { KeroxOptions, StresserOptions } from "../types/Options";
 import { KPacket, Packet } from "../types/Packet";
 import { KProxy } from "../types/Proxy";
 import { Stats } from "./Stats";
-import { DDoSDuration, DDoSOptions, isDDoSDuration } from "../types/DDoS";
+import { DDoSOptions, isDDoSDuration } from "../types/DDoS";
 import { LogType } from "../enums/LogType";
-import { KLog, Log } from "../types/Log";
+import { Log } from "../types/Log";
 import { LogManager } from "./LogManager";
 import { ProgressBar } from "./ProgressBar";
 import { HttpCodeRegistry } from "./HttpCodeRegistry";
