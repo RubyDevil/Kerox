@@ -17,12 +17,18 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build:cjs": "tsc --project tsconfig.cjs.json",
     "build:esm": "tsc --project tsconfig.esm.json",
-    "build": "npm run build:cjs && npm run build:esm"
+    "build": "npm run build:cjs && npm run build:esm",
+    "local": "npm run build && npm install -g ../kerox"
+  },
+  "bin": {
+    "kerox": "./bin/kerox-cli.js"
   },
   "dependencies": {
     "@faker-js/faker": "^9.0.0",
     "axios": "^1.6.1",
-    "overpaint.js": "^2.0.1"
+    "overpaint.js": "^2.0.1",
+    "shelljs": "^0.8.5",
+    "yargs": "^17.7.2"
   },
   "devDependencies": {
     "typescript": "^5.6.2"

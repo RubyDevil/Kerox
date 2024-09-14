@@ -1,7 +1,6 @@
 import { KProxy } from '../types/Proxy';
 export declare function getStatic(fileName: string): string;
 export declare function setStatic(fileName: string, content: string): void;
-export declare function addStatic(fileName: string, content: string): void;
 export declare function parseProxies(proxies: string[]): KProxy[];
 export declare function joinProxies(proxies: KProxy[]): string[];
 /**

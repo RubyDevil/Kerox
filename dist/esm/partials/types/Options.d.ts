@@ -5,6 +5,7 @@ export type KeroxOptions = {
     refreshRate: OneToSixty;
     useProxies: boolean;
     validateProxies: boolean;
+    proxyFilePath?: string;
 };
 export type StresserOptions = {
     updateInterval: number;

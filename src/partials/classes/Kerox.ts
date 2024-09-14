@@ -1,6 +1,7 @@
 import { ChildProcess, fork } from "child_process";
 import path from "path";
 import * as http from 'http';
+import fs from 'fs';
 
 import 'overpaint.js';
 
@@ -18,16 +19,33 @@ import { Log } from "../types/Log";
 import { LogManager } from "./LogManager";
 import { ProgressBar } from "./ProgressBar";
 import { HttpCodeRegistry } from "./HttpCodeRegistry";
+import EventEmitter from "node:events";
 
-export class Kerox {
+export interface KeroxEvents {
+   idle: () => any;
+}
+
+export class Kerox extends EventEmitter {
+   emit<K extends keyof KeroxEvents>(event: K, ...args: Parameters<KeroxEvents[K]>): boolean { return super.emit(event, ...args); }
+   on<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this { return super.on(event, listener); }
+   once<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this { return super.once(event, listener); }
+   off<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this { return super.off(event, listener); }
    // ===== Static =====
-   public static header: string = getStatic('header.txt')._RebeccaPurple;
+   public static header: string = // getStatic('header.txt')._RebeccaPurple;
+      `\r  _  __                  
+       \r | |/ /
+       \r | ' / ___ _ __ _____  __
+       \r |  < / _ \\ '__/ _ \\ \\/ /
+       \r | . \\  __/ | | (_) >  <
+       \r |_|\\_\\___|_|  \\___/_/\\_\\`._RebeccaPurple;
    // ===== Status =====
    public status: Status = Status.Unknown;
    public info: Info = Info.Unknown;
    public set _status(value: [Status?, Info?]) {
       this.status = value[0] ?? Status.Unknown;
       this.info = value[1] ?? Info.Unknown;
+      if (this.status === Status.Idle)
+         this.emit('idle');
    }
    // ===== Logs =====
    private logs = new LogManager();
@@ -42,16 +60,17 @@ export class Kerox {
    private stats = new Stats();
    private progressBar = new ProgressBar(26);
    // ===== Options =====
-   private ddosStartTime?: number;
    private ddosOptions?: DDoSOptions;
    private options: KeroxOptions = {
       updateInterval: 1000,
       refreshRate: 5,
       useProxies: false,
       validateProxies: true,
+      proxyFilePath: undefined,
    };
    // ===== Constructor =====
    constructor(options?: Partial<KeroxOptions>) {
+      super();
       if (typeof options === 'object') {
          Object.assign(this.options, options);
       }
@@ -61,11 +80,27 @@ export class Kerox {
 
    // ========== Initialization =====================================================================
 
+   private crash(message: string = 'An error occurred.') {
+      this.logs._info(message._Red);
+      this.logs._info('Stopping Kerox...'._Red._bold);
+      setTimeout(process.exit, 1000);
+   }
+
    private initialize() {
       this.stats.disable();
-      this.useLocalProxies();
-      if (this.options.validateProxies)
-         this.validateProxies(5000);
+      if (this.options.useProxies) {
+         if (!this.options.proxyFilePath) {
+            return this.crash('Proxy file path is missing.');
+         } else if (!fs.existsSync(this.options.proxyFilePath)) {
+            return this.crash('Proxy file not found.');
+         } else {
+            this.proxies = parseProxies(fs.readFileSync(this.options.proxyFilePath, 'utf8').split('\n'));
+            if (this.options.validateProxies)
+               this.validateProxies();
+         }
+      } else {
+         this._status = [Status.Idle, Info.Unknown];
+      }
    }
 
    private stopStressers() {
@@ -164,19 +199,13 @@ export class Kerox {
    // ========== Proxies ===============================================================================
 
    /**
-    * Reads the proxies from the file and saves them to the proxies array.
-    */
-   private useLocalProxies() {
-      let rawProxies = getStatic('proxies.txt').split('\n');
-      this.proxies = parseProxies(rawProxies);
-   }
-
-   /**
     * Starts a stresser to validate the proxies and keep only the working ones.
     */
    private validateProxies(timeout: number = 5000) {
-      if (!this.options.useProxies)
-         return void this.logs._info('Skipping proxy validation.'._dim);
+      if (!this.options.validateProxies) {
+         this.logs._info('Skipping proxy validation.'._dim);
+         return;
+      }
       // set status
       this._status = [Status.Busy, Info.ValidatingProxies];
       this.resetStats();
@@ -196,12 +225,11 @@ export class Kerox {
          if (packet.type === PacketType.Done) {
             let rawProxies = getStatic('valid_proxies.txt').split('\n');
             let validProxies = parseProxies(rawProxies);
-            this.logs._info(`Found ${validProxies.length} valid proxies`);
             if (validProxies.length > 0) {
+               this.logs._info(`Found ${validProxies.length} valid proxies`);
                this.proxies = validProxies;
             } else {
-               this.logs._info('Stopping Kerox...'._Red._bold);
-               setTimeout(process.exit, 1000);
+               return this.crash('No valid proxies found.');
             }
             this._status = [Status.Idle, Info.Unknown];
          }
@@ -276,11 +304,12 @@ export class Kerox {
     * @param target The target url
     */
    public ddos(options: DDoSOptions) {
+      this.logs._info(options.target);
       if (!isDDoSDuration(options.duration))
-         return void this.logs._info(`Invalid duration.`._Red);
+         return this.crash('Invalid duration.');
 
       if (this.status === Status.Busy)
-         return void this.logs._info(`Kerox is ${this.status}. ${this.info}`._Red);
+         return this.crash(`Kerox is ${this.status}. ${this.info}`);
 
       this._status = [Status.Busy, Info.Stressing];
       this.stopStressers();

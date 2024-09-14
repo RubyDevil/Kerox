@@ -1,5 +1,6 @@
 .vscode/
 src/
+extra/
 tsconfig.json
 tsconfig.cjs.json
 tsconfig.esm.json

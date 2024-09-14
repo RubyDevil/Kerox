@@ -1,2 +1,0 @@
-https://proxy.webshare.io/api/v2/proxy/list/download/pldpyxbdorrkssgqlaetjhclimzslpcivrojysex/-/any/username/direct/-/
-https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc

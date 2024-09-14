@@ -4,16 +4,14 @@ import { KProxy } from '../types/Proxy';
 
 
 export function getStatic(fileName: string) {
-   return fs.readFileSync(path.join(__dirname, '..', '..', 'static', fileName), 'utf8');
+   return fs.readFileSync(path.join(__dirname, '..', '..', '..', 'static', fileName), 'utf8');
 }
 export function setStatic(fileName: string, content: string) {
-   return fs.writeFileSync(path.join(__dirname, '..', '..', 'static', fileName), content, 'utf8');
-}
-export function addStatic(fileName: string, content: string) {
-   return fs.appendFileSync(path.join(__dirname, '..', '..', 'static', fileName), content, 'utf8');
+   return fs.writeFileSync(path.join(__dirname, '..', '..', '..', 'static', fileName), content, 'utf8');
 }
 
 export function parseProxies(proxies: string[]): KProxy[] {
+   
    return proxies
       .map(proxy => proxy.split(':') as KProxy)
       .filter(proxy => proxy.length >= 2);

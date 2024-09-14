@@ -3,7 +3,15 @@ import { Status } from "../enums/Status";
 import { Info } from "../enums/Status";
 import { KeroxOptions } from "../types/Options";
 import { DDoSOptions } from "../types/DDoS";
-export declare class Kerox {
+import EventEmitter from "node:events";
+export interface KeroxEvents {
+    idle: () => any;
+}
+export declare class Kerox extends EventEmitter {
+    emit<K extends keyof KeroxEvents>(event: K, ...args: Parameters<KeroxEvents[K]>): boolean;
+    on<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this;
+    once<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this;
+    off<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this;
     static header: string;
     status: Status;
     info: Info;
@@ -15,10 +23,10 @@ export declare class Kerox {
     private httpAgent;
     private stats;
     private progressBar;
-    private ddosStartTime?;
     private ddosOptions?;
     private options;
     constructor(options?: Partial<KeroxOptions>);
+    private crash;
     private initialize;
     private stopStressers;
     private resetStats;
@@ -29,10 +37,6 @@ export declare class Kerox {
     private createPannel;
     private statsPanel;
     private httpCodesPanel;
-    /**
-     * Reads the proxies from the file and saves them to the proxies array.
-     */
-    private useLocalProxies;
     /**
      * Starts a stresser to validate the proxies and keep only the working ones.
      */
@@ -51,5 +55,5 @@ export declare class Kerox {
      * Starts stressing a target url with a single stresser
      * @param target The target url
      */
-    ddos(options: DDoSOptions): undefined;
+    ddos(options: DDoSOptions): void;
 }

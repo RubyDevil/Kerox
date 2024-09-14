@@ -6,6 +6,7 @@ export type KeroxOptions = {
    refreshRate: OneToSixty; // FPS
    useProxies: boolean;
    validateProxies: boolean;
+   proxyFilePath?: string;
 };
 
 export type StresserOptions = {

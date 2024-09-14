@@ -25,20 +25,16 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStatic = getStatic;
 exports.setStatic = setStatic;
-exports.addStatic = addStatic;
 exports.parseProxies = parseProxies;
 exports.joinProxies = joinProxies;
 exports.toHumanTime = toHumanTime;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 function getStatic(fileName) {
-    return fs.readFileSync(path.join(__dirname, '..', '..', 'static', fileName), 'utf8');
+    return fs.readFileSync(path.join(__dirname, '..', '..', '..', 'static', fileName), 'utf8');
 }
 function setStatic(fileName, content) {
-    return fs.writeFileSync(path.join(__dirname, '..', '..', 'static', fileName), content, 'utf8');
-}
-function addStatic(fileName, content) {
-    return fs.appendFileSync(path.join(__dirname, '..', '..', 'static', fileName), content, 'utf8');
+    return fs.writeFileSync(path.join(__dirname, '..', '..', '..', 'static', fileName), content, 'utf8');
 }
 function parseProxies(proxies) {
     return proxies
