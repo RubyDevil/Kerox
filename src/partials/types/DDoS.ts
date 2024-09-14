@@ -1,4 +1,5 @@
 import * as http from 'http';
+import * as https from 'https';
 
 /**
  * DDoS Options
@@ -6,9 +7,16 @@ import * as http from 'http';
 export type DDoSOptions = {
    target: string;
    duration: DDoSDuration;
+   multiplier: 1 | 2 | 3 | 4;
    threads: number;
    CPUs: number;
    agent?: Partial<http.AgentOptions>;
+   dropRequests: boolean;
+   display: {
+      progressBar: boolean;
+      statistics: boolean;
+      httpCodes: boolean;
+   };
 };
 
 /**

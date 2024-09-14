@@ -21,14 +21,14 @@ process.on('message', async (packet: KPacket) => {
 
       case PacketType.ValidateProxies: {
          process.send?.(Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`._dim)));
-         await stresser.validateProxies(packet.data?.proxies!, packet.data?.timeout!);
+         await stresser.validateProxies(packet.data?.proxies!);
          process.send(Packet(PacketType.Done, undefined));
          break;
       }
 
       case PacketType.Stress: {
          if (!packet.data) throw new Error('Duration cannot be null.');
-         stresser.stress(packet.data);
+         await stresser.stress(packet.data);
          break;
       }
 

@@ -1,6 +1,7 @@
 import { ChildProcess, fork } from "child_process";
 import path from "path";
 import * as http from 'http';
+import * as https from 'https';
 
 import 'overpaint.js';
 
@@ -17,6 +18,7 @@ import { LogType } from "../enums/LogType";
 import { KLog, Log } from "../types/Log";
 import { LogManager } from "./LogManager";
 import { ProgressBar } from "./ProgressBar";
+import { HttpCodeRegistry } from "./HttpCodeRegistry";
 
 export class Kerox {
    // ===== Static =====
@@ -32,11 +34,11 @@ export class Kerox {
    private logs = new LogManager();
    // ===== Stressers =====
    private stressers = new Map<number, ChildProcess>();
-   private stresserStats = new Map<number, any>();
+   private stresserStats = new Map<number, Stats>();
    // ===== Proxies =====
    private proxies: KProxy[] = [];
    // ===== Agents =====
-   private httpAgents: http.Agent[] = [];
+   private httpAgent: http.Agent = new http.Agent();
    // ===== Statistics =====
    private stats = new Stats();
    private progressBar = new ProgressBar(26);
@@ -44,19 +46,17 @@ export class Kerox {
    private ddosStartTime?: number;
    private ddosOptions?: DDoSOptions;
    private options: KeroxOptions = {
+      updateInterval: 1000,
       refreshRate: 5,
       useProxies: false,
       validateProxies: true,
-      updatesPerSecond: 2,
    };
    // ===== Constructor =====
    constructor(options?: Partial<KeroxOptions>) {
       if (typeof options === 'object') {
          Object.assign(this.options, options);
       }
-
       this.renderTerminal(this.options.refreshRate);
-
       this.initialize();
    }
 
@@ -69,11 +69,6 @@ export class Kerox {
          this.validateProxies(5000);
    }
 
-   private resetStats() {
-      this.stats.reset();
-      this.stresserStats.clear();
-   }
-
    private stopStressers() {
       this.stressers.forEach(stresser => stresser.kill());
       this.stressers.clear();
@@ -82,19 +77,19 @@ export class Kerox {
 
    // ========== Stats ================================================================================
 
+   private resetStats() {
+      this.stats = new Stats();
+      this.stresserStats.clear();
+   }
+
    private updateStats() {
       if (this.stats._disabled) return;
 
-      this.stats.requests = 0;
-      this.stats.pending = 0;
-      this.stats.success = 0;
-      this.stats.errors = 0;
+      this.stats.reset();
 
-      this.stresserStats.forEach(stats => {
-         this.stats.requests += stats.requests as number;
-         this.stats.pending += stats.pending as number;
-         this.stats.success += stats.success as number;
-         this.stats.errors += stats.errors as number;
+      this.stresserStats.forEach((stats) => {
+         if (!stats) return;
+         this.stats.combine(stats);
       });
 
       if (this.ddosOptions)
@@ -108,18 +103,18 @@ export class Kerox {
       this.logs.update();
 
       console.clear();
-      console.log(Kerox.header);
+      console.log(Kerox.header + '\n');
 
-      console.log();
-
-      if (!this.stats._disabled) {
-         console.log(this.createStatsText(this.stats), '\n')
-         console.log(this.progressBar.bar);
+      if (this.info === Info.Stressing) {
+         if (this.ddosOptions?.display.progressBar)
+            console.log(this.progressBar.bar + '\n');
+         if (this.ddosOptions?.display.statistics)
+            console.log(this.statsPanel(this.stats) + '\n');
+         if (this.ddosOptions?.display.httpCodes)
+            console.log(this.httpCodesPanel(this.stats.codes) + '\n');
       }
+
       this.logs.print(LogType.Stats);
-
-      console.log();
-
       this.logs.print(LogType.Info);
    }
 
@@ -128,23 +123,43 @@ export class Kerox {
       setInterval(() => this.renderFrame(), 1000 / fps);
    }
 
-   private createStatsText(stats: Stats): string {
-      let fields: [string, any, string][] = [
+   private createField(label: string, data: any, ...styles: string[]): string {
+      let field = `${label}:`.padEnd(11) + `${data}`.padStart(15);
+      for (let style of styles)
+         field = field[`_${style}` as any];
+      return field;
+   }
+
+   private createPannel(fields: [string, any, string][]): string {
+      let pannel = '';
+      for (let [label, data, ...styles] of fields) {
+         let field = this.createField(label, data, ...styles);
+         pannel += field + '\n';
+      }
+      return pannel.trimEnd();
+   }
+
+   private statsPanel(stats: Stats): string {
+      return this.createPannel([
          ['Duration', stats.duration, 'Gray'],
          ['Speed', stats.speed, 'Gray'],
          ['Requests', stats.requests, 'White'],
          ['Pending', stats.pending, 'OrangeGold'],
          ['Success', stats.success, 'GreenApple'],
+         ['Fails', stats.fails, 'Orange'],
          ['Errors', stats.errors, 'Red'],
-      ];
-      let text = '';
-      for (let [label, data, ...styles] of fields) {
-         let line = `${label}:`.padEnd(11) + `${data}`.padStart(15);
-         for (let style of styles)
-            line = line[`_${style}` as any];
-         text += line + '\n';
-      }
-      return text.trimEnd();
+         ['Dropped', stats.dropped, 'Gray'],
+      ]);
+   }
+
+   private httpCodesPanel(codes: HttpCodeRegistry): string {
+      return this.createPannel([
+         ['1XX', codes._1XX, 'Gray'],
+         ['2XX', codes._2XX, 'Gray'],
+         ['3XX', codes._3XX, 'Gray'],
+         ['4XX', codes._4XX, 'Gray'],
+         ['5XX', codes._5XX, 'Gray'],
+      ]);
    }
 
    // ========== Proxies ===============================================================================
@@ -168,11 +183,14 @@ export class Kerox {
       this.resetStats();
       // validate proxies
       let validator = this.spawn({
-         updatesPerSecond: 1,
+         updateInterval: this.options.updateInterval!,
          target: 'https://example.com',
          useProxies: true,
          proxies: this.proxies,
-         threads: 10000,
+         multiplier: 1,
+         threads: 1,
+         agent: undefined,
+         dropRequests: false,
       });
       // listen for validation completion
       validator?.on('message', (packet: KPacket) => {
@@ -211,22 +229,23 @@ export class Kerox {
          if (typeof packet !== 'object') return;
          switch (packet.type) {
             case PacketType.Spawned:
-               this.logs._info(`Spawned Kerox (pid: ${stresser.pid})`._GreenApple._dim);
+               this.logs._info(`Spawned Kerox (pid: ${stresser.pid})`._GreenApple._dim, 5000);
                break;
             case PacketType.Done:
                this.kill(stresser.pid!, false);
                break;
             case PacketType.Data:
-               this.stresserStats.set(stresser.pid!, packet.data);
+               this.stresserStats.set(stresser.pid!, packet.data!);
                break;
             case PacketType.Log:
                this.logs.push(packet.data!);
                break;
+            case PacketType.Error:
+               this.logs.push(Log(LogType.Info, packet.data as any));
+               this.renderFrame();
+               process.exit(1);
+               break;
          }
-      });
-
-      stresser.on('error', (error) => {
-         console.log(error);
       });
 
       stresser.send(Packet(PacketType.Init, {
@@ -248,7 +267,7 @@ export class Kerox {
       this.stressers.delete(stresser.pid!);
       if (deleteStats)
          this.stresserStats.delete(stresser.pid!);
-      this.logs._info(`Killed Kerox (pid: ${stresser.pid})`._Red._dim);
+      this.logs._info(`Killed Kerox (pid: ${stresser.pid})`._Red._dim, 5000);
    }
 
    // ========== DDoS ==================================================================================
@@ -275,21 +294,25 @@ export class Kerox {
       const onCompleted = () => {
          this._status = [Status.Idle, Info.Unknown];
          this.logs._info('Attack complete.'._GreenApple._bold);
-         this.logs._stats(this.createStatsText(this.stats));
+         this.logs._stats(this.statsPanel(this.stats) + '\n');
+         if (this.ddosOptions?.display.httpCodes)
+            this.logs._stats(this.httpCodesPanel(this.stats.codes) + '\n');
          this.stopStressers();
          this.stats.disable();
       };
       // spawn stressers
-      let agent = options.agent ? new http.Agent(options.agent) : undefined;
       let spawned = 0;
       let completed = 0;
       for (let i = 0; i < options.CPUs; i++) {
          const stresser = this.spawn({
+            updateInterval: this.options.updateInterval!,
             target: options.target,
             useProxies: this.options.useProxies,
             proxies: this.proxies,
+            multiplier: options.multiplier,
             threads: Math.floor(options.threads / options.CPUs),
-            httpAgent: agent,
+            agent: options.agent,
+            dropRequests: options.dropRequests,
          });
          // wait for completed
          stresser.on('message', (packet: KPacket) => {

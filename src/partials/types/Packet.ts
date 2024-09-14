@@ -14,7 +14,7 @@ type BasePacket<T extends PacketType, D> = {
 type DataTypeMap = {
    [PacketType.Log]: KLog;
    [PacketType.Data]: Stats;
-   [PacketType.Error]: string;
+   [PacketType.Error]: Error;
    [PacketType.Spawned]: undefined;
    [PacketType.Done]: undefined;
    [PacketType.Init]: StresserOptions;

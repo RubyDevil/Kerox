@@ -1,20 +1,23 @@
 import * as http from "http";
+import * as https from "https";
 import { KProxy } from "./Proxy";
 
 export type KeroxOptions = {
-   updatesPerSecond?: number;
+   updateInterval?: number;
    refreshRate: OneToSixty; // FPS
    useProxies: boolean;
    validateProxies: boolean;
 };
 
 export type StresserOptions = {
-   updatesPerSecond?: number;
+   updateInterval: number;
    target: string; // URL
    useProxies: boolean;
    proxies: KProxy[];
+   multiplier: 1 | 2 | 3 | 4;
    threads: number;
-   httpAgent?: http.Agent;
+   agent?: Partial<http.AgentOptions>;
+   dropRequests: boolean;
 };
 
 export type Options = KeroxOptions & StresserOptions;
