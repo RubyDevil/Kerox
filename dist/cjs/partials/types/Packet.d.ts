@@ -3,7 +3,6 @@ import { KLog } from "./Log";
 import { Stats } from "../classes/Stats";
 import { KProxy } from "./Proxy";
 import { StresserOptions } from "./Options";
-import { DDoSDuration } from "./DDoS";
 type BasePacket<T extends PacketType, D> = {
     type: T;
     data?: D;
@@ -14,8 +13,9 @@ type DataTypeMap = {
     [PacketType.Error]: Error;
     [PacketType.Spawned]: undefined;
     [PacketType.Done]: undefined;
+    [PacketType.ValidationCompleted]: KProxy[];
     [PacketType.Init]: StresserOptions;
-    [PacketType.Stress]: DDoSDuration;
+    [PacketType.Stress]: number;
     [PacketType.ValidateProxies]: {
         proxies: KProxy[];
         timeout?: number;

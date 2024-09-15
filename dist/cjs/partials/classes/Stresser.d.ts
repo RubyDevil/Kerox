@@ -1,7 +1,6 @@
 import 'overpaint.js';
 import { StresserOptions } from '../types/Options';
 import { KProxy } from '../types/Proxy';
-import { DDoSDuration } from "../types/DDoS";
 export declare class Stresser {
     private targetURL;
     private httpAgent;
@@ -25,7 +24,7 @@ export declare class Stresser {
      * @param duration The duration of the attack
      * @param config The configuration to use for the requests
      */
-    stress(duration: DDoSDuration): Promise<void>;
+    stress(duration: number): Promise<void>;
     private tick_v1;
     private tick_v2;
     validateProxies(proxies: KProxy[]): Promise<KProxy[]>;

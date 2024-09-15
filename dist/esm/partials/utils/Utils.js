@@ -1,11 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
-export function getStatic(fileName) {
-    return fs.readFileSync(path.join(__dirname, '..', '..', '..', 'static', fileName), 'utf8');
-}
-export function setStatic(fileName, content) {
-    return fs.writeFileSync(path.join(__dirname, '..', '..', '..', 'static', fileName), content, 'utf8');
-}
 export function parseProxies(proxies) {
     return proxies
         .map(proxy => proxy.split(':'))

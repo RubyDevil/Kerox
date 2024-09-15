@@ -3,7 +3,7 @@ import { Status } from "../enums/Status";
 import { Info } from "../enums/Status";
 import { KeroxOptions } from "../types/Options";
 import { DDoSOptions } from "../types/DDoS";
-import EventEmitter from "node:events";
+import EventEmitter from "events";
 export interface KeroxEvents {
     idle: () => any;
 }

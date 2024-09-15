@@ -9,10 +9,12 @@ export declare enum PacketType {
     Spawned = 3,
     /** Stresser completed task */
     Done = 4,
+    /** Proxies validated */
+    ValidationCompleted = 5,
     /** Initialize stresser */
-    Init = 5,
+    Init = 6,
     /** Begin attack */
-    Stress = 6,
+    Stress = 7,
     /** Validate proxies */
-    ValidateProxies = 7
+    ValidateProxies = 8
 }

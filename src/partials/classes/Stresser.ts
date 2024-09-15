@@ -2,16 +2,14 @@ import { URL } from 'url';
 import http from 'http';
 
 import 'overpaint.js';
-import axios, { AxiosRequestConfig, AxiosRequestHeaders } from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 import { faker } from '@faker-js/faker';
 
-import { setStatic } from '../utils/Utils';
 import { PacketType } from '../enums/PacketType';
 import { StresserOptions } from '../types/Options';
 import { KProxy } from '../types/Proxy';
 import { Stats } from './Stats';
 import { Packet } from '../types/Packet';
-import { DDoSDuration } from "../types/DDoS";
 import { HttpCode } from '../types/HttpCode';
 import { LogType } from '../enums/LogType';
 import { Log } from '../types/Log';
@@ -54,7 +52,7 @@ export class Stresser {
    private makeRequest_Beta(proxy?: KProxy) {
       return new Promise<boolean | null>((resolve, reject) => {
          try {
-            if (this.stats.pending >= this.options.threads) resolve(null);
+            if (this.stats.pending >= this.options.maxPending) resolve(null);
 
             this.requestSent();
             // create headers
@@ -115,7 +113,7 @@ export class Stresser {
     * @param proxy The proxy to use for the request
     */
    private async makeRequest(proxy?: KProxy) {
-      if (this.stats.pending >= this.options.threads) return null;
+      if (this.stats.pending >= this.options.maxPending) return null;
 
       // create headers
       let headers: { [key: string]: string } = {
@@ -181,7 +179,7 @@ export class Stresser {
     * @param duration The duration of the attack
     * @param config The configuration to use for the requests
     */
-   public async stress(duration: DDoSDuration) {
+   public async stress(duration: number) {
       // send requests
       this.tick_v1();
       // this.tick_v2(Date.now() + duration * 1000);
@@ -216,10 +214,7 @@ export class Stresser {
       process.send?.(Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`)));
       // filter out invalid proxies
       let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
-      // save valid proxies to file
-      let txt_data = valid_proxies.map(proxy => proxy.join(':')).join('\n');
-      setStatic('valid_proxies.txt', txt_data);
-
+      // return valid proxies
       return valid_proxies;
    }
 
@@ -260,5 +255,9 @@ export class Stresser {
 
 }
 
-process.on('uncaughtException', () => { });
-process.on('unhandledRejection', () => { });
+process.on('uncaughtException', (error) => {
+   throw error;
+});
+process.on('unhandledRejection', (error) => {
+   throw error;
+});

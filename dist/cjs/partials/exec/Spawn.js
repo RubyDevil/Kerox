@@ -27,7 +27,8 @@ process.on('message', (packet) => __awaiter(void 0, void 0, void 0, function* ()
         }
         case PacketType_1.PacketType.ValidateProxies: {
             (_b = process.send) === null || _b === void 0 ? void 0 : _b.call(process, (0, Packet_1.Packet)(PacketType_1.PacketType.Log, (0, Log_1.Log)(LogType_1.LogType.Info, `Validating proxies...`._dim)));
-            yield stresser.validateProxies((_c = packet.data) === null || _c === void 0 ? void 0 : _c.proxies);
+            const validProxies = yield stresser.validateProxies((_c = packet.data) === null || _c === void 0 ? void 0 : _c.proxies);
+            process.send((0, Packet_1.Packet)(PacketType_1.PacketType.ValidationCompleted, validProxies));
             process.send((0, Packet_1.Packet)(PacketType_1.PacketType.Done, undefined));
             break;
         }

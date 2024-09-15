@@ -14,13 +14,15 @@ var PacketType;
     PacketType[PacketType["Spawned"] = 3] = "Spawned";
     /** Stresser completed task */
     PacketType[PacketType["Done"] = 4] = "Done";
+    /** Proxies validated */
+    PacketType[PacketType["ValidationCompleted"] = 5] = "ValidationCompleted";
     // KEROX -> STRESSER
     /** Initialize stresser */
-    PacketType[PacketType["Init"] = 5] = "Init";
+    PacketType[PacketType["Init"] = 6] = "Init";
     /** Begin attack */
-    PacketType[PacketType["Stress"] = 6] = "Stress";
+    PacketType[PacketType["Stress"] = 7] = "Stress";
     /** Validate proxies */
-    PacketType[PacketType["ValidateProxies"] = 7] = "ValidateProxies";
+    PacketType[PacketType["ValidateProxies"] = 8] = "ValidateProxies";
 })(PacketType || (exports.PacketType = PacketType = {}));
 ;
 //# sourceMappingURL=PacketType.js.map

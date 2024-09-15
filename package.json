@@ -21,7 +21,7 @@
     "local": "npm run build && npm install -g ../kerox"
   },
   "bin": {
-    "kerox": "./bin/kerox-cli.js"
+    "kerox": "./bin/kerox"
   },
   "dependencies": {
     "@faker-js/faker": "^9.0.0",

@@ -4,10 +4,10 @@ import * as http from 'http';
  */
 export type DDoSOptions = {
     target: string;
-    duration: DDoSDuration;
-    multiplier: 1 | 2 | 3 | 4;
-    threads: number;
-    CPUs: number;
+    duration: number;
+    multiplier: number;
+    maxPending: number;
+    childProcesses: number;
     agent?: Partial<http.AgentOptions>;
     dropRequests: boolean;
     display: {
@@ -16,10 +16,3 @@ export type DDoSOptions = {
         httpCodes: boolean;
     };
 };
-/**
- * DDoS Durations
- */
-declare const DDoSDurations: readonly [15, 30, 60, 120, 300];
-export type DDoSDuration = typeof DDoSDurations[number];
-export declare function isDDoSDuration(value: any): value is DDoSDuration;
-export {};

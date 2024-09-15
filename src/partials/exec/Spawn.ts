@@ -19,7 +19,8 @@ process.on('message', async (packet: KPacket) => {
 
       case PacketType.ValidateProxies: {
          process.send?.(Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`._dim)));
-         await stresser.validateProxies(packet.data?.proxies!);
+         const validProxies = await stresser.validateProxies(packet.data?.proxies!);
+         process.send(Packet(PacketType.ValidationCompleted, validProxies));
          process.send(Packet(PacketType.Done, undefined));
          break;
       }

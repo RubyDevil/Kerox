@@ -12,6 +12,8 @@ export enum PacketType {
    Spawned,
    /** Stresser completed task */
    Done,
+   /** Proxies validated */
+   ValidationCompleted,
 
    // KEROX -> STRESSER
 

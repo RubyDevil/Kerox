@@ -1,1 +1,1 @@
-{"version":3,"file":"DDoS.js","sourceRoot":"","sources":["../../../../src/partials/types/DDoS.ts"],"names":[],"mappings":"AAoBA;;GAEG;AACH,MAAM,aAAa,GAAG,CAAC,EAAE,EAAE,EAAE,EAAE,EAAE,EAAE,GAAG,EAAE,GAAG,CAAU,CAAC;AAEtD,MAAM,UAAU,cAAc,CAAC,KAAU;IACtC,OAAO,aAAa,CAAC,QAAQ,CAAC,KAAK,CAAC,CAAC;AACxC,CAAC"}
+{"version":3,"file":"DDoS.js","sourceRoot":"","sources":["../../../../src/partials/types/DDoS.ts"],"names":[],"mappings":""}
