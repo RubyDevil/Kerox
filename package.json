@@ -1,7 +1,7 @@
 {
   "name": "kerox",
   "version": "1.0.0",
-  "description": "A network stressing tool that uses HTTP(S) requests with optional proxies",
+  "description": "A simple network stressing tool that harnesses the power of NodeJS's parallelism",
   "author": "RubyDevil",
   "license": "ISC",
   "main": "./dist/cjs/index.js",

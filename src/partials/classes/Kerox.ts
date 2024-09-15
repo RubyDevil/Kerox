@@ -91,10 +91,10 @@ export class Kerox extends EventEmitter {
       if (this.options.useProxies) {
          if (!this.options.proxyFilePath) {
             return this.crash('Proxy file path is missing.');
-         } else if (!fs.existsSync(this.options.proxyFilePath)) {
+         } else if (!fs.existsSync(path.resolve(this.options.proxyFilePath))) {
             return this.crash('Proxy file not found.');
          } else {
-            this.proxies = parseProxies(fs.readFileSync(this.options.proxyFilePath, 'utf8').split('\n'));
+            this.proxies = parseProxies(fs.readFileSync(path.resolve(this.options.proxyFilePath), 'utf8').split('\n'));
             if (this.options.validateProxies)
                await this.validateProxies();
             this._status = [Status.Idle, Info.Unknown];

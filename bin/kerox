@@ -125,6 +125,7 @@ yargs(hideBin(process.argv))
             updateInterval: 1000,
             useProxies: !!argv.proxyList,
             validateProxies: !argv.noValidate,
+            proxyFilePath: argv.proxyList,
          });
          if (kerox.status === Status.Idle)
             execute();

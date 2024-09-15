@@ -108,11 +108,11 @@ class Kerox extends events_1.default {
                 if (!this.options.proxyFilePath) {
                     return this.crash('Proxy file path is missing.');
                 }
-                else if (!fs_1.default.existsSync(this.options.proxyFilePath)) {
+                else if (!fs_1.default.existsSync(path_1.default.resolve(this.options.proxyFilePath))) {
                     return this.crash('Proxy file not found.');
                 }
                 else {
-                    this.proxies = (0, Utils_1.parseProxies)(fs_1.default.readFileSync(this.options.proxyFilePath, 'utf8').split('\n'));
+                    this.proxies = (0, Utils_1.parseProxies)(fs_1.default.readFileSync(path_1.default.resolve(this.options.proxyFilePath), 'utf8').split('\n'));
                     if (this.options.validateProxies)
                         yield this.validateProxies();
                     this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
