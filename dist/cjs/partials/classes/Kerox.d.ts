@@ -55,5 +55,5 @@ export declare class Kerox extends EventEmitter {
      * Starts stressing a target url with a single stresser
      * @param target The target url
      */
-    ddos(options: DDoSOptions): void;
+    ddos(options: DDoSOptions): Promise<void>;
 }

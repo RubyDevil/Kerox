@@ -13,19 +13,18 @@ export declare class Stresser {
      * Send a request to the target URL
      * @param proxy The proxy to use for the request
      */
-    private makeRequest_Beta;
+    private makeRequest;
     /**
      * Send a request to the target URL
      * @param proxy The proxy to use for the request
      */
-    private makeRequest;
+    private makeRequest_Beta;
     /**
      * Stress the target URL for a specified duration
      * @param duration The duration of the attack
      * @param config The configuration to use for the requests
      */
     stress(duration: number): Promise<void>;
-    private tick_v1;
     private tick_v2;
     validateProxies(proxies: KProxy[]): Promise<KProxy[]>;
     private requestSent;

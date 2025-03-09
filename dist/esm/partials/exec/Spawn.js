@@ -34,6 +34,7 @@ process.on('message', (packet) => __awaiter(void 0, void 0, void 0, function* ()
             if (!packet.data)
                 throw new Error('Duration cannot be null.');
             yield stresser.stress(packet.data);
+            process.send(Packet(PacketType.Done, undefined));
             break;
         }
     }
