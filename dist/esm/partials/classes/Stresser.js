@@ -15,8 +15,6 @@ import { faker } from '@faker-js/faker';
 import { PacketType } from '../enums/PacketType';
 import { Stats } from './Stats';
 import { Packet } from '../types/Packet';
-import { LogType } from '../enums/LogType';
-import { Log } from '../types/Log';
 export class Stresser {
     get nextProxy() {
         return this.options.proxies[++this._proxyIndex % this.options.proxies.length];
@@ -47,7 +45,7 @@ export class Stresser {
     makeRequest(proxy) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.stats.pending >= this.options.maxPending)
-                return null;
+                return 0;
             // create headers
             let headers = {
                 'X-Forwarded-For': faker.internet.ipv4(),
@@ -203,12 +201,10 @@ export class Stresser {
     // ========== Proxies =============================================================================
     validateProxies(proxies) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
             // validate proxies, and get an array of results (true/false)
-            let proxy_results = yield Promise.all(proxies.map((proxy) => __awaiter(this, void 0, void 0, function* () { return yield this.makeRequest(proxy); })));
-            (_a = process.send) === null || _a === void 0 ? void 0 : _a.call(process, Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`)));
+            const proxyResults = yield Promise.allSettled(proxies.map(proxy => this.makeRequest(proxy)));
             // filter out invalid proxies
-            let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
+            const valid_proxies = proxies.filter((_, index) => proxyResults[index].status === 'fulfilled' ? proxyResults[index].value : proxyResults[index].reason);
             // return valid proxies
             return valid_proxies;
         });
@@ -232,7 +228,7 @@ export class Stresser {
     requestCompleted(code) {
         this.stats.pending--;
         this.stats.codes.register(code);
-        let success = (code === 200);
+        let success = (code >= 200 && code <= 299);
         (success) ? this.stats.success++ : this.stats.fails++;
         return success;
     }

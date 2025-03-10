@@ -1,6 +1,6 @@
 {
 	"name": "kerox",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "A simple network stressing tool that harnesses the power of NodeJS's parallelism",
 	"author": "RubyDevil",
 	"license": "ISC",

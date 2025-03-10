@@ -31,7 +31,7 @@ export class Kerox extends EventEmitter {
 	once<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this { return super.once(event, listener); }
 	off<K extends keyof KeroxEvents>(event: K, listener: KeroxEvents[K]): this { return super.off(event, listener); }
 	// ===== Static =====
-	public static header: string = // getStatic('header.txt')._RebeccaPurple;
+	public static header: string =
 		`\r  _  __                  
        \r | |/ /
        \r | ' / ___ _ __ _____  __
@@ -54,8 +54,6 @@ export class Kerox extends EventEmitter {
 	private stresserStats = new Map<number, Stats>();
 	// ===== Proxies =====
 	private proxies: KProxy[] = [];
-	// ===== Agents =====
-	private httpAgent: http.Agent = new http.Agent();
 	// ===== Statistics =====
 	private stats = new Stats();
 	private progressBar = new ProgressBar(26);
@@ -74,7 +72,8 @@ export class Kerox extends EventEmitter {
 		if (typeof options === 'object') {
 			Object.assign(this.options, options);
 		}
-		this.renderTerminal(this.options.refreshRate);
+		this.renderFrame();
+		setInterval(() => this.renderFrame(), 1000 / this.options.refreshRate);
 		this.initialize();
 	}
 
@@ -97,6 +96,7 @@ export class Kerox extends EventEmitter {
 				this.proxies = parseProxies(fs.readFileSync(path.resolve(this.options.proxyFilePath), 'utf8').split('\n'));
 				if (this.options.validateProxies)
 					await this.validateProxies();
+				this.renderFrame();
 				this._status = [Status.Idle, Info.Unknown];
 			}
 		} else {
@@ -140,22 +140,17 @@ export class Kerox extends EventEmitter {
 		console.clear();
 		console.log(Kerox.header + '\n');
 
-		if (this.info === Info.Stressing) {
-			if (this.ddosOptions?.display.progressBar)
-				console.log(this.progressBar.bar + '\n');
-			if (this.ddosOptions?.display.statistics)
-				console.log(this.statsPanel(this.stats) + '\n');
-			if (this.ddosOptions?.display.httpCodes)
-				console.log(this.httpCodesPanel(this.stats.codes) + '\n');
-		}
+		// if (this.info === Info.Stressing) {
+		if (this.ddosOptions?.display.progressBar)
+			console.log(this.progressBar.bar + '\n');
+		if (this.ddosOptions?.display.statistics || this.info === Info.ValidatingProxies)
+			console.log(this.statsPanel(this.stats) + '\n');
+		if (this.ddosOptions?.display.httpCodes || this.info === Info.ValidatingProxies)
+			console.log(this.httpCodesPanel(this.stats.codes) + '\n');
+		// }
 
 		this.logs.print(LogType.Stats);
 		this.logs.print(LogType.Info);
-	}
-
-	public renderTerminal(fps: number = 10) {
-		this.renderFrame();
-		setInterval(() => this.renderFrame(), 1000 / fps);
 	}
 
 	private createField(label: string, data: any, ...styles: string[]): string {
@@ -218,9 +213,9 @@ export class Kerox extends EventEmitter {
 				useProxies: true,
 				proxies: this.proxies,
 				multiplier: 1,
-				maxPending: 1,
+				maxPending: this.ddosOptions?.maxPending ?? 999999999, // Does not work if 'Infinity'
 				agent: undefined,
-				dropRequests: false,
+				dropRequests: false
 			});
 			// listen for validation completion
 			validator?.on('message', (packet: KPacket) => {
@@ -232,6 +227,7 @@ export class Kerox extends EventEmitter {
 						this._status = [Status.Idle, Info.Unknown];
 						return resolve();
 					} else {
+						this._status = [Status.Idle, Info.Unknown];
 						return this.crash('No valid proxies found.');
 					}
 				}
@@ -259,7 +255,7 @@ export class Kerox extends EventEmitter {
 			if (typeof packet !== 'object') return;
 			switch (packet.type) {
 				case PacketType.Spawned:
-					this.logs._info(`Spawned Kerox (pid: ${stresser.pid})`._GreenApple._dim, 5000);
+					this.logs._info(`Spawned stresser (pid: ${stresser.pid})`._GreenApple._dim, 5000);
 					break;
 				case PacketType.Done:
 					this.kill(stresser.pid!, false);
@@ -274,7 +270,6 @@ export class Kerox extends EventEmitter {
 					this.logs.push(Log(LogType.Info, packet.data as any));
 					this.renderFrame();
 					process.exit(1);
-					break;
 			}
 		});
 
@@ -297,7 +292,7 @@ export class Kerox extends EventEmitter {
 		this.stressers.delete(stresser.pid!);
 		if (deleteStats)
 			this.stresserStats.delete(stresser.pid!);
-		this.logs._info(`Killed Kerox (pid: ${stresser.pid})`._Red._dim, 5000);
+		this.logs._info(`Killed stresser (pid: ${stresser.pid})`._Red._dim, 5000);
 	}
 
 	// ========== DDoS ==================================================================================
@@ -308,7 +303,7 @@ export class Kerox extends EventEmitter {
 	 */
 	public ddos(options: DDoSOptions) {
 		return new Promise<void>((resolve, reject) => {
-			if (this.status === Status.Busy)
+			if (this.status !== Status.Idle)
 				return this.crash(`Kerox is ${this.status}. ${this.info}`);
 
 			this._status = [Status.Busy, Info.Stressing];

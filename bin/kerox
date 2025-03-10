@@ -121,7 +121,7 @@ yargs(hideBin(process.argv))
 			const url = argv.protocol + "://" + argv.host + ":" + argv.port + (argv.route || "");
 			const { Kerox, Status } = require("kerox");
 			const kerox = new Kerox({
-				refreshRate: 10,
+				refreshRate: 1,
 				// updateInterval: 100,
 				useProxies: !!argv.proxyList,
 				validateProxies: !argv.noValidate,

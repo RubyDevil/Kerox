@@ -1,27 +1,4 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -38,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Kerox = void 0;
 const child_process_1 = require("child_process");
 const path_1 = __importDefault(require("path"));
-const http = __importStar(require("http"));
 const fs_1 = __importDefault(require("fs"));
 require("overpaint.js");
 const Utils_1 = require("../utils/Utils");
@@ -77,8 +53,6 @@ class Kerox extends events_1.default {
         this.stresserStats = new Map();
         // ===== Proxies =====
         this.proxies = [];
-        // ===== Agents =====
-        this.httpAgent = new http.Agent();
         // ===== Statistics =====
         this.stats = new Stats_1.Stats();
         this.progressBar = new ProgressBar_1.ProgressBar(26);
@@ -92,7 +66,8 @@ class Kerox extends events_1.default {
         if (typeof options === 'object') {
             Object.assign(this.options, options);
         }
-        this.renderTerminal(this.options.refreshRate);
+        this.renderFrame();
+        setInterval(() => this.renderFrame(), 1000 / this.options.refreshRate);
         this.initialize();
     }
     // ========== Initialization =====================================================================
@@ -115,6 +90,7 @@ class Kerox extends events_1.default {
                     this.proxies = (0, Utils_1.parseProxies)(fs_1.default.readFileSync(path_1.default.resolve(this.options.proxyFilePath), 'utf8').split('\n'));
                     if (this.options.validateProxies)
                         yield this.validateProxies();
+                    this.renderFrame();
                     this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
                 }
             }
@@ -152,20 +128,16 @@ class Kerox extends events_1.default {
         this.logs.update();
         console.clear();
         console.log(Kerox.header + '\n');
-        if (this.info === Status_2.Info.Stressing) {
-            if ((_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.display.progressBar)
-                console.log(this.progressBar.bar + '\n');
-            if ((_b = this.ddosOptions) === null || _b === void 0 ? void 0 : _b.display.statistics)
-                console.log(this.statsPanel(this.stats) + '\n');
-            if ((_c = this.ddosOptions) === null || _c === void 0 ? void 0 : _c.display.httpCodes)
-                console.log(this.httpCodesPanel(this.stats.codes) + '\n');
-        }
+        // if (this.info === Info.Stressing) {
+        if ((_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.display.progressBar)
+            console.log(this.progressBar.bar + '\n');
+        if (((_b = this.ddosOptions) === null || _b === void 0 ? void 0 : _b.display.statistics) || this.info === Status_2.Info.ValidatingProxies)
+            console.log(this.statsPanel(this.stats) + '\n');
+        if (((_c = this.ddosOptions) === null || _c === void 0 ? void 0 : _c.display.httpCodes) || this.info === Status_2.Info.ValidatingProxies)
+            console.log(this.httpCodesPanel(this.stats.codes) + '\n');
+        // }
         this.logs.print(LogType_1.LogType.Stats);
         this.logs.print(LogType_1.LogType.Info);
-    }
-    renderTerminal(fps = 10) {
-        this.renderFrame();
-        setInterval(() => this.renderFrame(), 1000 / fps);
     }
     createField(label, data, ...styles) {
         let field = `${label}:`.padEnd(11) + `${data}`.padStart(15);
@@ -208,6 +180,7 @@ class Kerox extends events_1.default {
      */
     validateProxies(timeout = 5000) {
         return new Promise((resolve, reject) => {
+            var _a, _b;
             if (!this.options.validateProxies) {
                 this.logs._info('Skipping proxy validation.'._dim);
                 return resolve();
@@ -222,9 +195,9 @@ class Kerox extends events_1.default {
                 useProxies: true,
                 proxies: this.proxies,
                 multiplier: 1,
-                maxPending: 1,
+                maxPending: (_b = (_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.maxPending) !== null && _b !== void 0 ? _b : 999999999, // Does not work if 'Infinity'
                 agent: undefined,
-                dropRequests: false,
+                dropRequests: false
             });
             // listen for validation completion
             validator === null || validator === void 0 ? void 0 : validator.on('message', (packet) => {
@@ -237,6 +210,7 @@ class Kerox extends events_1.default {
                         return resolve();
                     }
                     else {
+                        this._status = [Status_1.Status.Idle, Status_2.Info.Unknown];
                         return this.crash('No valid proxies found.');
                     }
                 }
@@ -262,7 +236,7 @@ class Kerox extends events_1.default {
                 return;
             switch (packet.type) {
                 case PacketType_1.PacketType.Spawned:
-                    this.logs._info(`Spawned Kerox (pid: ${stresser.pid})`._GreenApple._dim, 5000);
+                    this.logs._info(`Spawned stresser (pid: ${stresser.pid})`._GreenApple._dim, 5000);
                     break;
                 case PacketType_1.PacketType.Done:
                     this.kill(stresser.pid, false);
@@ -277,7 +251,6 @@ class Kerox extends events_1.default {
                     this.logs.push((0, Log_1.Log)(LogType_1.LogType.Info, packet.data));
                     this.renderFrame();
                     process.exit(1);
-                    break;
             }
         });
         stresser.send((0, Packet_1.Packet)(PacketType_1.PacketType.Init, Object.assign(Object.assign({}, this.options), options)));
@@ -295,7 +268,7 @@ class Kerox extends events_1.default {
         this.stressers.delete(stresser.pid);
         if (deleteStats)
             this.stresserStats.delete(stresser.pid);
-        this.logs._info(`Killed Kerox (pid: ${stresser.pid})`._Red._dim, 5000);
+        this.logs._info(`Killed stresser (pid: ${stresser.pid})`._Red._dim, 5000);
     }
     // ========== DDoS ==================================================================================
     /**
@@ -304,7 +277,7 @@ class Kerox extends events_1.default {
      */
     ddos(options) {
         return new Promise((resolve, reject) => {
-            if (this.status === Status_1.Status.Busy)
+            if (this.status !== Status_1.Status.Idle)
                 return this.crash(`Kerox is ${this.status}. ${this.info}`);
             this._status = [Status_1.Status.Busy, Status_2.Info.Stressing];
             this.stopStressers();

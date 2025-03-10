@@ -21,8 +21,6 @@ const faker_1 = require("@faker-js/faker");
 const PacketType_1 = require("../enums/PacketType");
 const Stats_1 = require("./Stats");
 const Packet_1 = require("../types/Packet");
-const LogType_1 = require("../enums/LogType");
-const Log_1 = require("../types/Log");
 class Stresser {
     get nextProxy() {
         return this.options.proxies[++this._proxyIndex % this.options.proxies.length];
@@ -53,7 +51,7 @@ class Stresser {
     makeRequest(proxy) {
         return __awaiter(this, void 0, void 0, function* () {
             if (this.stats.pending >= this.options.maxPending)
-                return null;
+                return 0;
             // create headers
             let headers = {
                 'X-Forwarded-For': faker_1.faker.internet.ipv4(),
@@ -209,12 +207,10 @@ class Stresser {
     // ========== Proxies =============================================================================
     validateProxies(proxies) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
             // validate proxies, and get an array of results (true/false)
-            let proxy_results = yield Promise.all(proxies.map((proxy) => __awaiter(this, void 0, void 0, function* () { return yield this.makeRequest(proxy); })));
-            (_a = process.send) === null || _a === void 0 ? void 0 : _a.call(process, (0, Packet_1.Packet)(PacketType_1.PacketType.Log, (0, Log_1.Log)(LogType_1.LogType.Info, `Validating proxies...`)));
+            const proxyResults = yield Promise.allSettled(proxies.map(proxy => this.makeRequest(proxy)));
             // filter out invalid proxies
-            let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
+            const valid_proxies = proxies.filter((_, index) => proxyResults[index].status === 'fulfilled' ? proxyResults[index].value : proxyResults[index].reason);
             // return valid proxies
             return valid_proxies;
         });
@@ -238,7 +234,7 @@ class Stresser {
     requestCompleted(code) {
         this.stats.pending--;
         this.stats.codes.register(code);
-        let success = (code === 200);
+        let success = (code >= 200 && code <= 299);
         (success) ? this.stats.success++ : this.stats.fails++;
         return success;
     }

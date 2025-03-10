@@ -9,7 +9,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 import { fork } from "child_process";
 import path from "path";
-import * as http from 'http';
 import fs from 'fs';
 import 'overpaint.js';
 import { parseProxies } from "../utils/Utils";
@@ -48,8 +47,6 @@ export class Kerox extends EventEmitter {
         this.stresserStats = new Map();
         // ===== Proxies =====
         this.proxies = [];
-        // ===== Agents =====
-        this.httpAgent = new http.Agent();
         // ===== Statistics =====
         this.stats = new Stats();
         this.progressBar = new ProgressBar(26);
@@ -63,7 +60,8 @@ export class Kerox extends EventEmitter {
         if (typeof options === 'object') {
             Object.assign(this.options, options);
         }
-        this.renderTerminal(this.options.refreshRate);
+        this.renderFrame();
+        setInterval(() => this.renderFrame(), 1000 / this.options.refreshRate);
         this.initialize();
     }
     // ========== Initialization =====================================================================
@@ -86,6 +84,7 @@ export class Kerox extends EventEmitter {
                     this.proxies = parseProxies(fs.readFileSync(path.resolve(this.options.proxyFilePath), 'utf8').split('\n'));
                     if (this.options.validateProxies)
                         yield this.validateProxies();
+                    this.renderFrame();
                     this._status = [Status.Idle, Info.Unknown];
                 }
             }
@@ -123,20 +122,16 @@ export class Kerox extends EventEmitter {
         this.logs.update();
         console.clear();
         console.log(Kerox.header + '\n');
-        if (this.info === Info.Stressing) {
-            if ((_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.display.progressBar)
-                console.log(this.progressBar.bar + '\n');
-            if ((_b = this.ddosOptions) === null || _b === void 0 ? void 0 : _b.display.statistics)
-                console.log(this.statsPanel(this.stats) + '\n');
-            if ((_c = this.ddosOptions) === null || _c === void 0 ? void 0 : _c.display.httpCodes)
-                console.log(this.httpCodesPanel(this.stats.codes) + '\n');
-        }
+        // if (this.info === Info.Stressing) {
+        if ((_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.display.progressBar)
+            console.log(this.progressBar.bar + '\n');
+        if (((_b = this.ddosOptions) === null || _b === void 0 ? void 0 : _b.display.statistics) || this.info === Info.ValidatingProxies)
+            console.log(this.statsPanel(this.stats) + '\n');
+        if (((_c = this.ddosOptions) === null || _c === void 0 ? void 0 : _c.display.httpCodes) || this.info === Info.ValidatingProxies)
+            console.log(this.httpCodesPanel(this.stats.codes) + '\n');
+        // }
         this.logs.print(LogType.Stats);
         this.logs.print(LogType.Info);
-    }
-    renderTerminal(fps = 10) {
-        this.renderFrame();
-        setInterval(() => this.renderFrame(), 1000 / fps);
     }
     createField(label, data, ...styles) {
         let field = `${label}:`.padEnd(11) + `${data}`.padStart(15);
@@ -179,6 +174,7 @@ export class Kerox extends EventEmitter {
      */
     validateProxies(timeout = 5000) {
         return new Promise((resolve, reject) => {
+            var _a, _b;
             if (!this.options.validateProxies) {
                 this.logs._info('Skipping proxy validation.'._dim);
                 return resolve();
@@ -193,9 +189,9 @@ export class Kerox extends EventEmitter {
                 useProxies: true,
                 proxies: this.proxies,
                 multiplier: 1,
-                maxPending: 1,
+                maxPending: (_b = (_a = this.ddosOptions) === null || _a === void 0 ? void 0 : _a.maxPending) !== null && _b !== void 0 ? _b : 999999999, // Does not work if 'Infinity'
                 agent: undefined,
-                dropRequests: false,
+                dropRequests: false
             });
             // listen for validation completion
             validator === null || validator === void 0 ? void 0 : validator.on('message', (packet) => {
@@ -208,6 +204,7 @@ export class Kerox extends EventEmitter {
                         return resolve();
                     }
                     else {
+                        this._status = [Status.Idle, Info.Unknown];
                         return this.crash('No valid proxies found.');
                     }
                 }
@@ -233,7 +230,7 @@ export class Kerox extends EventEmitter {
                 return;
             switch (packet.type) {
                 case PacketType.Spawned:
-                    this.logs._info(`Spawned Kerox (pid: ${stresser.pid})`._GreenApple._dim, 5000);
+                    this.logs._info(`Spawned stresser (pid: ${stresser.pid})`._GreenApple._dim, 5000);
                     break;
                 case PacketType.Done:
                     this.kill(stresser.pid, false);
@@ -248,7 +245,6 @@ export class Kerox extends EventEmitter {
                     this.logs.push(Log(LogType.Info, packet.data));
                     this.renderFrame();
                     process.exit(1);
-                    break;
             }
         });
         stresser.send(Packet(PacketType.Init, Object.assign(Object.assign({}, this.options), options)));
@@ -266,7 +262,7 @@ export class Kerox extends EventEmitter {
         this.stressers.delete(stresser.pid);
         if (deleteStats)
             this.stresserStats.delete(stresser.pid);
-        this.logs._info(`Killed Kerox (pid: ${stresser.pid})`._Red._dim, 5000);
+        this.logs._info(`Killed stresser (pid: ${stresser.pid})`._Red._dim, 5000);
     }
     // ========== DDoS ==================================================================================
     /**
@@ -275,7 +271,7 @@ export class Kerox extends EventEmitter {
      */
     ddos(options) {
         return new Promise((resolve, reject) => {
-            if (this.status === Status.Busy)
+            if (this.status !== Status.Idle)
                 return this.crash(`Kerox is ${this.status}. ${this.info}`);
             this._status = [Status.Busy, Info.Stressing];
             this.stopStressers();

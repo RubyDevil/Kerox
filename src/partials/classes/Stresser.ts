@@ -50,7 +50,7 @@ export class Stresser {
 	 * @param proxy The proxy to use for the request
 	 */
 	private async makeRequest(proxy?: KProxy) {
-		if (this.stats.pending >= this.options.maxPending) return null;
+		if (this.stats.pending >= this.options.maxPending) return 0;
 
 		// create headers
 		let headers: { [key: string]: string } = {
@@ -218,12 +218,9 @@ export class Stresser {
 
 	public async validateProxies(proxies: KProxy[]): Promise<KProxy[]> {
 		// validate proxies, and get an array of results (true/false)
-		let proxy_results = await Promise.all(
-			proxies.map(async (proxy) => await this.makeRequest(proxy))
-		);
-		process.send?.(Packet(PacketType.Log, Log(LogType.Info, `Validating proxies...`)));
+		const proxyResults = await Promise.allSettled(proxies.map(proxy => this.makeRequest(proxy)));
 		// filter out invalid proxies
-		let valid_proxies = proxies.filter((proxy, index) => proxy_results[index]);
+		const valid_proxies = proxies.filter((_, index) => proxyResults[index].status === 'fulfilled' ? proxyResults[index].value : proxyResults[index].reason);
 		// return valid proxies
 		return valid_proxies;
 	}
@@ -251,7 +248,7 @@ export class Stresser {
 	private requestCompleted(code: HttpCode): boolean {
 		this.stats.pending--;
 		this.stats.codes.register(code);
-		let success = (code === 200);
+		let success = (code >= 200 && code <= 299);
 		(success) ? this.stats.success++ : this.stats.fails++;
 		return success;
 	}

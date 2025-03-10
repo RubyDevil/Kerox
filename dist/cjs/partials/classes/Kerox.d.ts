@@ -20,7 +20,6 @@ export declare class Kerox extends EventEmitter {
     private stressers;
     private stresserStats;
     private proxies;
-    private httpAgent;
     private stats;
     private progressBar;
     private ddosOptions?;
@@ -32,7 +31,6 @@ export declare class Kerox extends EventEmitter {
     private resetStats;
     private updateStats;
     private renderFrame;
-    renderTerminal(fps?: number): void;
     private createField;
     private createPannel;
     private statsPanel;
